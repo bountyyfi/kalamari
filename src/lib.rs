@@ -48,9 +48,15 @@ pub mod xss;
 
 // Re-exports for convenience
 pub use browser::{Browser, BrowserConfig, Page, PageConfig};
+pub use browser::{Crawler, CrawlConfig, CrawlResult};
+pub use browser::{Form, FormField, FormSubmitter};
+pub use browser::{Frame, FrameTree, FrameHandler};
+pub use browser::{PrintToPdfOptions, ReportFormat};
 pub use dom::{Document, Element, Node};
 pub use error::{Error, Result};
 pub use http::{CookieJar, HttpClient, Request, Response};
-pub use js::{JsRuntime, JsValue};
+pub use js::{JsRuntime, JsRuntimeConfig, JsValue};
 pub use network::{NetworkEvent, NetworkInterceptor};
+pub use network::{RequestInterceptor, InterceptAction, InterceptorChain, AuthHeaderInjector};
 pub use xss::{XssDetector, XssTrigger, XssTriggerType};
+pub use xss::{PayloadGenerator, XssPayload, PayloadContext};

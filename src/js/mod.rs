@@ -8,7 +8,9 @@
 mod runtime;
 mod value;
 mod bindings;
+mod dom_api;
 
-pub use runtime::JsRuntime;
+pub use runtime::{JsRuntime, JsRuntimeConfig, ConsoleMessage, ConsoleLevel};
 pub use value::JsValue;
 pub use bindings::DomBindings;
+pub use dom_api::{DomApiInstaller, MutationObserverOptions};
