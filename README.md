@@ -16,6 +16,10 @@ Kalamari is a pure Rust headless browser designed specifically for XSS scanning,
 - **🖼️ Iframe Handling**: Recursive frame processing with XSS hook injection
 - **🕷️ Crawler**: Built-in web crawler with configurable depth
 - **📄 PDF Generation**: Optional PDF reports (feature-gated)
+- **🔐 Auth Session**: Extract cookies, localStorage, JWT tokens after login
+- **🗺️ SPA Routes**: Detect Vue/React/Angular routes from JS bundles
+- **🔌 WebSocket Discovery**: Find WebSocket endpoints in JavaScript
+- **⏱️ Timer Control**: flush_timers() and wait_for_js_idle() for async JS
 
 ## Lonkero Integration
 
@@ -31,6 +35,10 @@ Kalamari is designed as a drop-in replacement for Chrome headless in [Lonkero](h
 | Iframe support | Native | Recursive processing |
 | MutationObserver | Native | JS stub |
 | PDF generation | Native | Feature-gated |
+| Auth session | Manual | `AuthSession` extractor |
+| SPA routes | Manual | `ScriptAnalyzer` |
+| WebSocket discovery | Manual | `ScriptAnalyzer` |
+| Timer control | Native | `TimerQueue` |
 
 ## Installation
 
@@ -250,6 +258,94 @@ let pdf_bytes = generator.generate_pdf(&html, &options)?;
 std::fs::write("report.pdf", pdf_bytes)?;
 ```
 
+### Auth Session Extraction
+
+```rust
+use kalamari::{Browser, AuthSession};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let browser = Browser::launch().await?;
+    let page = browser.new_page().await?;
+
+    // Navigate to login and authenticate
+    page.navigate("https://example.com/login").await?;
+    // ... perform login ...
+
+    // Extract auth session (cookies, localStorage, headers)
+    let session = page.extract_auth_session();
+
+    println!("Session ID: {:?}", session.session_id);
+    println!("Bearer Token: {:?}", session.bearer_token);
+    println!("CSRF Token: {:?}", session.csrf_token);
+    println!("Authenticated: {}", session.is_authenticated);
+
+    // Use session for subsequent requests
+    if let Some(auth_header) = session.authorization_header() {
+        println!("Auth Header: {}", auth_header);
+    }
+
+    Ok(())
+}
+```
+
+### SPA Route Detection
+
+```rust
+use kalamari::{ScriptAnalyzer, ScriptSource};
+
+// Extract SPA routes from JavaScript bundles (Vue/React/Angular)
+let analyzer = ScriptAnalyzer::new();
+let scripts = page.get_script_sources();
+
+for script in &scripts {
+    // Find routes
+    let routes = analyzer.find_routes(script);
+    for route in routes {
+        println!("Route: {} (auth: {})", route.path, route.requires_auth);
+    }
+
+    // Find WebSocket endpoints
+    let ws_endpoints = analyzer.find_websocket_endpoints(script);
+    for endpoint in ws_endpoints {
+        println!("WebSocket: {} ({:?})", endpoint.url, endpoint.discovery_method);
+    }
+
+    // Find API endpoints
+    let api_endpoints = analyzer.find_api_endpoints(script);
+    for endpoint in api_endpoints {
+        println!("API: {}", endpoint);
+    }
+}
+```
+
+### JavaScript Timer Control
+
+```rust
+use kalamari::{TimerQueue, JsIdleConfig};
+
+// Lonkero pattern for waiting on async JS:
+// std::thread::sleep(Duration::from_millis(500));
+// let result = tab.evaluate(&js_code, true).await?;
+
+// Kalamari equivalent:
+let timer_queue = TimerQueue::new();
+
+// Execute all pending setTimeout/setInterval immediately
+let code_to_execute = timer_queue.flush_all();
+for code in code_to_execute {
+    runtime.execute(&code)?;
+}
+
+// Or flush with a limit (prevent infinite loops)
+let code = timer_queue.flush_limited(100);
+
+// Check if there are pending timers
+if timer_queue.has_pending() {
+    println!("Still {} pending timers", timer_queue.pending_count());
+}
+```
+
 ## CLI Usage
 
 ```bash
@@ -342,7 +438,7 @@ Kalamari is optimized for security testing, not full browser emulation:
 
 - **No visual rendering**: CSS layout/painting not implemented
 - **No WebGL/Canvas**: Graphics APIs not supported
-- **Stubbed async**: setTimeout/fetch are synchronous stubs
+- **Timer execution**: setTimeout/setInterval queued, use `flush_timers()` to execute
 - **No plugins**: Flash, PDF viewer, etc. not supported
 
 For features requiring full browser rendering (screenshots, visual testing), use the `chrome-pdf` feature which falls back to headless_chrome.

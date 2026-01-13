@@ -12,7 +12,7 @@ mod request;
 mod response;
 
 pub use client::HttpClient;
-pub use cookie::CookieJar;
+pub use cookie::{CookieJar, Cookie, SameSite};
 pub use request::{Request, RequestBuilder};
 pub use response::Response;
 

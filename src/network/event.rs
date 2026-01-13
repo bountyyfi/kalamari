@@ -8,13 +8,15 @@ use std::time::{Duration, SystemTime};
 
 use serde::{Deserialize, Serialize};
 
-/// Network event
+/// Network event with full metadata for security analysis
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NetworkEvent {
     /// Event ID
     pub id: String,
     /// Event type
     pub event_type: EventType,
+    /// Request type (more specific than event_type)
+    pub request_type: RequestType,
     /// Timestamp
     pub timestamp: SystemTime,
     /// Request information
@@ -23,12 +25,99 @@ pub struct NetworkEvent {
     pub response: Option<ResponseInfo>,
     /// Duration
     pub duration: Option<Duration>,
+    /// Request timing breakdown (for timing attack detection)
+    pub timing: Option<RequestTiming>,
     /// Error message if failed
     pub error: Option<String>,
     /// Whether this was initiated by JavaScript
     pub js_initiated: bool,
-    /// Initiator URL
+    /// Initiator URL or script that triggered this request
     pub initiator: Option<String>,
+    /// Stack trace of initiator (if available)
+    pub initiator_stack: Option<String>,
+    /// Frame ID (for iframe requests)
+    pub frame_id: Option<String>,
+    /// Security info
+    pub security: Option<SecurityInfo>,
+}
+
+/// More specific request type
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RequestType {
+    /// Direct navigation
+    Document,
+    /// XMLHttpRequest
+    XHR,
+    /// Fetch API
+    Fetch,
+    /// WebSocket handshake
+    WebSocket,
+    /// WebSocket message
+    WebSocketMessage,
+    /// EventSource/SSE
+    EventSource,
+    /// Beacon API
+    Beacon,
+    /// Script tag
+    Script,
+    /// Link stylesheet
+    Stylesheet,
+    /// Image
+    Image,
+    /// Font
+    Font,
+    /// Media (audio/video)
+    Media,
+    /// Prefetch/preload
+    Prefetch,
+    /// Service worker
+    ServiceWorker,
+    /// Form submission
+    Form,
+    /// Iframe navigation
+    IFrame,
+    /// Unknown
+    Other,
+}
+
+/// Request timing breakdown (similar to PerformanceResourceTiming)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RequestTiming {
+    /// Time when request started
+    pub start_time: f64,
+    /// DNS lookup time
+    pub dns_time: Option<f64>,
+    /// TCP connection time
+    pub connect_time: Option<f64>,
+    /// TLS handshake time
+    pub tls_time: Option<f64>,
+    /// Time to first byte (TTFB)
+    pub ttfb: Option<f64>,
+    /// Content download time
+    pub download_time: Option<f64>,
+    /// Total time
+    pub total_time: f64,
+    /// Whether connection was reused
+    pub connection_reused: bool,
+}
+
+/// Security information for the request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecurityInfo {
+    /// Protocol (TLS version)
+    pub protocol: Option<String>,
+    /// Cipher suite
+    pub cipher: Option<String>,
+    /// Certificate issuer
+    pub cert_issuer: Option<String>,
+    /// Certificate subject
+    pub cert_subject: Option<String>,
+    /// Certificate valid from
+    pub cert_valid_from: Option<String>,
+    /// Certificate valid to
+    pub cert_valid_to: Option<String>,
+    /// HSTS enabled
+    pub hsts: bool,
 }
 
 /// Event type
@@ -101,16 +190,69 @@ pub struct ResponseInfo {
 impl NetworkEvent {
     /// Create a new network event
     pub fn new(id: impl Into<String>, event_type: EventType, request: RequestInfo) -> Self {
+        let request_type = match event_type {
+            EventType::Navigation => RequestType::Document,
+            EventType::Xhr => RequestType::XHR,
+            EventType::Fetch => RequestType::Fetch,
+            EventType::Script => RequestType::Script,
+            EventType::Stylesheet => RequestType::Stylesheet,
+            EventType::Image => RequestType::Image,
+            EventType::Font => RequestType::Font,
+            EventType::WebSocket => RequestType::WebSocket,
+            EventType::FormSubmission => RequestType::Form,
+            EventType::Iframe => RequestType::IFrame,
+            EventType::Other => RequestType::Other,
+        };
+
         Self {
             id: id.into(),
             event_type,
+            request_type,
             timestamp: SystemTime::now(),
             request,
             response: None,
             duration: None,
+            timing: None,
             error: None,
             js_initiated: false,
             initiator: None,
+            initiator_stack: None,
+            frame_id: None,
+            security: None,
+        }
+    }
+
+    /// Create with specific request type
+    pub fn with_request_type(id: impl Into<String>, request_type: RequestType, request: RequestInfo) -> Self {
+        let event_type = match request_type {
+            RequestType::Document => EventType::Navigation,
+            RequestType::XHR => EventType::Xhr,
+            RequestType::Fetch => EventType::Fetch,
+            RequestType::WebSocket | RequestType::WebSocketMessage => EventType::WebSocket,
+            RequestType::Script => EventType::Script,
+            RequestType::Stylesheet => EventType::Stylesheet,
+            RequestType::Image => EventType::Image,
+            RequestType::Font => EventType::Font,
+            RequestType::Form => EventType::FormSubmission,
+            RequestType::IFrame => EventType::Iframe,
+            _ => EventType::Other,
+        };
+
+        Self {
+            id: id.into(),
+            event_type,
+            request_type,
+            timestamp: SystemTime::now(),
+            request,
+            response: None,
+            duration: None,
+            timing: None,
+            error: None,
+            js_initiated: false,
+            initiator: None,
+            initiator_stack: None,
+            frame_id: None,
+            security: None,
         }
     }
 
@@ -141,6 +283,30 @@ impl NetworkEvent {
     /// Set initiator
     pub fn with_initiator(mut self, initiator: impl Into<String>) -> Self {
         self.initiator = Some(initiator.into());
+        self
+    }
+
+    /// Set initiator stack trace
+    pub fn with_initiator_stack(mut self, stack: impl Into<String>) -> Self {
+        self.initiator_stack = Some(stack.into());
+        self
+    }
+
+    /// Set timing information
+    pub fn with_timing(mut self, timing: RequestTiming) -> Self {
+        self.timing = Some(timing);
+        self
+    }
+
+    /// Set frame ID
+    pub fn with_frame_id(mut self, frame_id: impl Into<String>) -> Self {
+        self.frame_id = Some(frame_id.into());
+        self
+    }
+
+    /// Set security info
+    pub fn with_security(mut self, security: SecurityInfo) -> Self {
+        self.security = Some(security);
         self
     }
 
@@ -300,6 +466,74 @@ impl ResponseInfo {
     /// Get redirect location
     pub fn redirect_location(&self) -> Option<&str> {
         self.headers.get("location").map(|s| s.as_str())
+    }
+}
+
+impl RequestTiming {
+    /// Create new timing starting now
+    pub fn start() -> Self {
+        Self {
+            start_time: 0.0,
+            dns_time: None,
+            connect_time: None,
+            tls_time: None,
+            ttfb: None,
+            download_time: None,
+            total_time: 0.0,
+            connection_reused: false,
+        }
+    }
+
+    /// Create from duration measurements
+    pub fn from_duration(total: Duration) -> Self {
+        Self {
+            start_time: 0.0,
+            dns_time: None,
+            connect_time: None,
+            tls_time: None,
+            ttfb: None,
+            download_time: None,
+            total_time: total.as_secs_f64() * 1000.0, // Convert to ms
+            connection_reused: false,
+        }
+    }
+
+    /// Check if request was slow (potential timing attack indicator)
+    pub fn is_slow(&self, threshold_ms: f64) -> bool {
+        self.total_time > threshold_ms
+    }
+
+    /// Get TTFB if available
+    pub fn time_to_first_byte(&self) -> Option<f64> {
+        self.ttfb
+    }
+}
+
+impl SecurityInfo {
+    /// Create empty security info
+    pub fn empty() -> Self {
+        Self {
+            protocol: None,
+            cipher: None,
+            cert_issuer: None,
+            cert_subject: None,
+            cert_valid_from: None,
+            cert_valid_to: None,
+            hsts: false,
+        }
+    }
+
+    /// Create for TLS connection
+    pub fn tls(protocol: impl Into<String>, cipher: impl Into<String>) -> Self {
+        Self {
+            protocol: Some(protocol.into()),
+            cipher: Some(cipher.into()),
+            cert_issuer: None,
+            cert_subject: None,
+            cert_valid_from: None,
+            cert_valid_to: None,
+            hsts: false,
+        }
     }
 }
 

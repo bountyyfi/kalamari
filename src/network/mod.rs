@@ -10,7 +10,10 @@ mod event;
 mod interceptor_trait;
 
 pub use interceptor::NetworkInterceptor;
-pub use event::{NetworkEvent, EventType, RequestInfo, ResponseInfo};
+pub use event::{
+    NetworkEvent, EventType, RequestInfo, ResponseInfo,
+    RequestType, RequestTiming, SecurityInfo,
+};
 pub use interceptor_trait::{
     RequestInterceptor, InterceptAction, InterceptorChain,
     HeaderEntry, AuthHeaderInjector, RequestLogger,
