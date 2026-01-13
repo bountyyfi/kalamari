@@ -1,0 +1,112 @@
+[package]
+name = "kalamari"
+version = "0.1.0"
+edition = "2021"
+authors = ["BountyyFi"]
+description = "Lightweight headless browser for XSS scanning and web crawling"
+license = "MIT"
+repository = "https://github.com/bountyyfi/kalamari"
+keywords = ["headless", "browser", "xss", "crawler", "security"]
+categories = ["web-programming", "development-tools::testing"]
+
+[lib]
+name = "kalamari"
+path = "src/lib.rs"
+
+[[bin]]
+name = "kalamari"
+path = "src/main.rs"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.35", features = ["full"] }
+
+# HTTP client - lightweight and fast
+reqwest = { version = "0.11", default-features = false, features = [
+    "rustls-tls",
+    "cookies",
+    "gzip",
+    "brotli",
+    "json",
+] }
+
+# HTML parsing - spec compliant, fast
+html5ever = "0.27"
+markup5ever_rcdom = "0.3"
+
+# CSS selectors
+selectors = "0.25"
+cssparser = "0.33"
+
+# JavaScript engine - pure Rust, no external binaries
+boa_engine = "0.18"
+boa_gc = "0.18"
+
+# URL handling
+url = "2.5"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Utilities
+regex = "1.10"
+lazy_static = "1.4"
+parking_lot = "0.12"
+dashmap = "5.5"
+bytes = "1.5"
+futures = "0.3"
+async-trait = "0.1"
+
+# Base64 for data URLs
+base64 = "0.21"
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+tokio-test = "0.4"
+wiremock = "0.5"
+criterion = "0.5"
+tempfile = "3.9"
+
+[features]
+default = []
+full = ["websocket", "pdf"]
+websocket = ["tokio-tungstenite"]
+pdf = ["printpdf"]
+chrome-pdf = ["headless_chrome"]
+
+[dependencies.tokio-tungstenite]
+version = "0.21"
+optional = true
+
+[dependencies.printpdf]
+version = "0.6"
+optional = true
+
+[dependencies.headless_chrome]
+version = "1.0"
+optional = true
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+opt-level = 3
+
+[profile.dev]
+opt-level = 1
+
+[[bench]]
+name = "browser_bench"
+harness = false
