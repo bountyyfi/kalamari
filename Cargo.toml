@@ -2,12 +2,16 @@
 name = "kalamari"
 version = "0.1.0"
 edition = "2021"
-authors = ["BountyyFi"]
-description = "Lightweight headless browser for XSS scanning and web crawling"
-license = "MIT"
+rust-version = "1.75"
+authors = ["Bountyy Oy <info@bountyy.fi>"]
+description = "Lightweight headless browser for security testing. Fast, pure Rust, no Chrome."
+license-file = "LICENSE"
 repository = "https://github.com/bountyyfi/kalamari"
-keywords = ["headless", "browser", "xss", "crawler", "security"]
+homepage = "https://bountyy.fi"
+keywords = ["headless", "browser", "xss", "security", "pentest"]
 categories = ["web-programming", "development-tools::testing"]
+readme = "README.md"
+include = ["src/**/*", "Cargo.toml", "LICENSE", "README.md"]
 
 [lib]
 name = "kalamari"
