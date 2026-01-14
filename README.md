@@ -1,5 +1,11 @@
 # Kalamari
 
+[![CI](https://github.com/bountyyfi/kalamari/actions/workflows/ci.yml/badge.svg)](https://github.com/bountyyfi/kalamari/actions/workflows/ci.yml)
+[![Release](https://github.com/bountyyfi/kalamari/actions/workflows/release.yml/badge.svg)](https://github.com/bountyyfi/kalamari/actions/workflows/release.yml)
+[![crates.io](https://img.shields.io/crates/v/kalamari.svg)](https://crates.io/crates/kalamari)
+[![docs.rs](https://docs.rs/kalamari/badge.svg)](https://docs.rs/kalamari)
+[![license](https://img.shields.io/badge/license-Proprietary-blue.svg)](LICENSE)
+
 **Lightweight Headless Browser for Security Testing**
 
 [Features](#features) | [Installation](#installation) | [Quick Start](#quick-start) | [API Reference](#api-reference) | [Lonkero Integration](#lonkero-integration)
@@ -386,7 +392,9 @@ For features requiring full browser rendering, use the `chrome-pdf` feature.
 
 Copyright (c) 2026 Bountyy Oy. All rights reserved.
 
-This software is proprietary and confidential.
+This software is licensed under the Bountyy Oy Source-Available License. You may view, study, and use the software for personal, non-commercial purposes. Commercial use requires a separate license agreement.
+
+See [LICENSE](LICENSE) for full terms. For licensing inquiries: info@bountyy.fi
 
 ## Links
 
