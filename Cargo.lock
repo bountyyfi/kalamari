@@ -182,9 +182,9 @@ dependencies = [
 
 [[package]]
 name = "boa_engine"
-version = "0.19.0"
+version = "0.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "411558b4cbc7d0303012e26721815e612fed78179313888fd5dd8d6c50d70099"
+checksum = "06e4559b35b80ceb2e6328481c0eca9a24506663ea33ee1e279be6b5b618b25c"
 dependencies = [
  "arrayvec",
  "bitflags 2.10.0",
