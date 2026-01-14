@@ -166,17 +166,23 @@ impl<'a> DomConverter<'a> {
             let mut nodes = self.doc.nodes.write();
             nodes.insert(node_id, data);
 
+            // Get last child before modification
+            let last_child_id = nodes.get(&parent_id).and_then(|p| p.children.last().copied());
+
+            // Update last child's next_sibling
+            if let Some(last_id) = last_child_id {
+                if let Some(last) = nodes.get_mut(&last_id) {
+                    last.next_sibling = Some(node_id);
+                }
+            }
+
+            // Update current node's prev_sibling
+            if let Some(current) = nodes.get_mut(&node_id) {
+                current.prev_sibling = last_child_id;
+            }
+
             // Add to parent's children
             if let Some(parent) = nodes.get_mut(&parent_id) {
-                // Update sibling links
-                if let Some(&last_child) = parent.children.last() {
-                    if let Some(last) = nodes.get_mut(&last_child) {
-                        last.next_sibling = Some(node_id);
-                    }
-                    if let Some(current) = nodes.get_mut(&node_id) {
-                        current.prev_sibling = Some(last_child);
-                    }
-                }
                 parent.children.push(node_id);
             }
         }

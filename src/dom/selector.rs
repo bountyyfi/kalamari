@@ -327,7 +327,7 @@ impl SelectorParser {
         }
 
         if parts.is_empty() {
-            return Err(Error::selector(self.original, "Invalid selector"));
+            return Err(Error::selector(&self.original, "Invalid selector"));
         }
 
         Ok(Selector {

@@ -267,7 +267,7 @@ impl Form {
             // Submit to current URL
             base_url
                 .map(|u| u.to_string())
-                .ok_or_else(|| Error::navigation("No base URL for form submission".into()))
+                .ok_or_else(|| Error::navigation("No base URL for form submission"))
         } else if action.starts_with("http://") || action.starts_with("https://") {
             Ok(action.to_string())
         } else if let Some(base) = base_url {
@@ -275,7 +275,7 @@ impl Form {
                 .map(|u| u.to_string())
                 .map_err(|e| Error::navigation(e.to_string()))
         } else {
-            Err(Error::navigation("Cannot resolve relative action URL".into()))
+            Err(Error::navigation("Cannot resolve relative action URL"))
         }
     }
 

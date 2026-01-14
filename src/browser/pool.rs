@@ -47,7 +47,7 @@ pub struct PoolStats {
 /// A page acquired from the pool
 pub struct PooledPage {
     /// The underlying page
-    page: Page,
+    page: Arc<Page>,
     /// Pool reference for release
     pool: Arc<BrowserPool>,
     /// Semaphore permit
@@ -59,11 +59,6 @@ impl PooledPage {
     pub fn page(&self) -> &Page {
         &self.page
     }
-
-    /// Get mutable reference to the page
-    pub fn page_mut(&mut self) -> &mut Page {
-        &mut self.page
-    }
 }
 
 impl std::ops::Deref for PooledPage {
@@ -71,12 +66,6 @@ impl std::ops::Deref for PooledPage {
 
     fn deref(&self) -> &Self::Target {
         &self.page
-    }
-}
-
-impl std::ops::DerefMut for PooledPage {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.page
     }
 }
 

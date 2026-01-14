@@ -186,7 +186,7 @@ impl DomClobberDetector {
                 let name = &input_cap[2];
                 let full_match = &input_cap[0];
 
-                if form_properties.contains(name.as_str()) {
+                if form_properties.contains(name) {
                     result.form_hijacks.push(ClobberedElement {
                         tag: tag.to_string(),
                         identifier: name.to_string(),
