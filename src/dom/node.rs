@@ -348,33 +348,33 @@ impl Node {
     pub fn append_child(&self, child: &Node) {
         let mut nodes = self.nodes.write();
 
+        // Collect info needed for updates
+        let old_parent_id = nodes.get(&child.id).and_then(|d| d.parent);
+        let last_child_id = nodes.get(&self.id).and_then(|d| d.children.last().copied());
+
         // Remove from old parent if any
-        if let Some(child_data) = nodes.get(&child.id) {
-            if let Some(old_parent_id) = child_data.parent {
-                if let Some(old_parent) = nodes.get_mut(&old_parent_id) {
-                    old_parent.children.retain(|&id| id != child.id);
-                }
+        if let Some(old_pid) = old_parent_id {
+            if let Some(old_parent) = nodes.get_mut(&old_pid) {
+                old_parent.children.retain(|&id| id != child.id);
             }
         }
 
-        // Update child's parent
+        // Update child's parent and reset siblings
         if let Some(child_data) = nodes.get_mut(&child.id) {
             child_data.parent = Some(self.id);
-            child_data.prev_sibling = None;
+            child_data.prev_sibling = last_child_id;
             child_data.next_sibling = None;
         }
 
-        // Add to new parent
-        if let Some(parent_data) = nodes.get_mut(&self.id) {
-            // Update sibling links
-            if let Some(&last_child_id) = parent_data.children.last() {
-                if let Some(last_child) = nodes.get_mut(&last_child_id) {
-                    last_child.next_sibling = Some(child.id);
-                }
-                if let Some(child_data) = nodes.get_mut(&child.id) {
-                    child_data.prev_sibling = Some(last_child_id);
-                }
+        // Update last child's next_sibling
+        if let Some(last_id) = last_child_id {
+            if let Some(last_child) = nodes.get_mut(&last_id) {
+                last_child.next_sibling = Some(child.id);
             }
+        }
+
+        // Add to parent's children
+        if let Some(parent_data) = nodes.get_mut(&self.id) {
             parent_data.children.push(child.id);
         }
     }

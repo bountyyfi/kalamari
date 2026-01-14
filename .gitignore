@@ -1,0 +1,22 @@
+# Build artifacts
+/target/
+*.rlib
+*.rmeta
+*.d
+
+# Cargo lock for library (keep for binary)
+# Cargo.lock  # Uncomment if this is a library only
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Debug files
+*.pdb

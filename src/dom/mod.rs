@@ -14,5 +14,5 @@ mod selector;
 pub use document::Document;
 pub use element::Element;
 pub use node::{Node, NodeId, NodeType};
-pub use parser::parse_html;
+pub use parser::{parse_html, parse_html_with_url};
 pub use selector::Selector;

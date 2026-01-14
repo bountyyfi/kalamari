@@ -110,7 +110,7 @@ impl Selector {
     pub fn parse(selector: &str) -> Result<Self> {
         let selector = selector.trim();
         if selector.is_empty() {
-            return Err(Error::Selector("Empty selector".into()));
+            return Err(Error::selector(selector, "Empty selector"));
         }
 
         // Simple parser - handles basic selectors
@@ -273,6 +273,7 @@ impl NthExpr {
 struct SelectorParser {
     input: Vec<char>,
     pos: usize,
+    original: String,
 }
 
 impl SelectorParser {
@@ -280,6 +281,7 @@ impl SelectorParser {
         Self {
             input: input.chars().collect(),
             pos: 0,
+            original: input.to_string(),
         }
     }
 
@@ -325,7 +327,7 @@ impl SelectorParser {
         }
 
         if parts.is_empty() {
-            return Err(Error::Selector("Invalid selector".into()));
+            return Err(Error::selector(&self.original, "Invalid selector"));
         }
 
         Ok(Selector {
@@ -365,7 +367,7 @@ impl SelectorParser {
             }
         }
         if result.is_empty() {
-            return Err(Error::Selector("Expected identifier".into()));
+            return Err(Error::selector(&self.original, "Expected identifier"));
         }
         Ok(result)
     }
@@ -414,7 +416,7 @@ impl SelectorParser {
                         self.expect('=')?;
                         AttributeOperator::Substring
                     }
-                    _ => return Err(Error::Selector(format!("Unknown operator: {}", c))),
+                    _ => return Err(Error::selector(&self.original, format!("Unknown operator: {}", c))),
                 };
                 operator = Some(op);
 
@@ -468,13 +470,13 @@ impl SelectorParser {
             "nth-child" => {
                 let expr = self.parse_function_arg()?;
                 PseudoClass::NthChild(NthExpr::parse(&expr).ok_or_else(|| {
-                    Error::Selector("Invalid nth expression".into())
+                    Error::selector(&self.original, "Invalid nth expression")
                 })?)
             }
             "nth-last-child" => {
                 let expr = self.parse_function_arg()?;
                 PseudoClass::NthLastChild(NthExpr::parse(&expr).ok_or_else(|| {
-                    Error::Selector("Invalid nth expression".into())
+                    Error::selector(&self.original, "Invalid nth expression")
                 })?)
             }
             "not" => {
@@ -544,11 +546,14 @@ impl SelectorParser {
     fn expect(&mut self, expected: char) -> Result<()> {
         match self.advance() {
             Some(c) if c == expected => Ok(()),
-            Some(c) => Err(Error::Selector(format!(
-                "Expected '{}', got '{}'",
-                expected, c
-            ))),
-            None => Err(Error::Selector(format!("Expected '{}', got EOF", expected))),
+            Some(c) => Err(Error::selector(
+                &self.original,
+                format!("Expected '{}', got '{}'", expected, c),
+            )),
+            None => Err(Error::selector(
+                &self.original,
+                format!("Expected '{}', got EOF", expected),
+            )),
         }
     }
 }

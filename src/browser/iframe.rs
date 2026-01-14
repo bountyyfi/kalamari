@@ -270,7 +270,7 @@ impl FrameHandler {
         let response = self.client.get(url.as_str()).await?;
 
         if !response.is_html() {
-            return Err(Error::Navigation("Frame content is not HTML".into()));
+            return Err(Error::navigation("Frame content is not HTML"));
         }
 
         let html = response.text_lossy();
@@ -281,13 +281,13 @@ impl FrameHandler {
     fn resolve_url(&self, src: &str, base: &Url) -> Result<Url> {
         // Skip data: and javascript: URLs
         if src.starts_with("data:") || src.starts_with("javascript:") {
-            return Err(Error::Navigation("Skipping non-http URL".into()));
+            return Err(Error::navigation("Skipping non-http URL"));
         }
 
         if src.starts_with("http://") || src.starts_with("https://") {
-            Url::parse(src).map_err(|e| Error::Navigation(e.to_string()))
+            Url::parse(src).map_err(|e| Error::navigation(e.to_string()))
         } else {
-            base.join(src).map_err(|e| Error::Navigation(e.to_string()))
+            base.join(src).map_err(|e| Error::navigation(e.to_string()))
         }
     }
 
