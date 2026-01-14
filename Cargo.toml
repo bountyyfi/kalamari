@@ -43,7 +43,7 @@ selectors = "0.25"
 cssparser = "0.33"
 
 # JavaScript engine - pure Rust, no external binaries
-boa_engine = "0.18"
+boa_engine = "0.19"
 boa_gc = "0.18"
 # Pin for boa 0.18 compatibility
 intrusive-collections = "=0.9.6"
