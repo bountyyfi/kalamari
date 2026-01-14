@@ -8,14 +8,17 @@
 //! - DOM sink detection
 //! - Event handler analysis
 //! - Payload generation and testing
+//! - Stored XSS detection flow
 
 mod detector;
 mod payloads;
 mod sinks;
+mod stored;
 
 pub use detector::{XssDetector, XssDetectorConfig};
 pub use payloads::{XssPayload, PayloadGenerator, PayloadContext};
 pub use sinks::{DomSink, SinkType, SinkAnalyzer};
+pub use stored::{StoredXssTest, StoredXssResult, StoredXssTester, stored_xss_payloads};
 
 use serde::{Deserialize, Serialize};
 

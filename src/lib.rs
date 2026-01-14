@@ -8,16 +8,20 @@
 //!
 //! ## Features
 //!
-//! - **Lightweight**: ~10MB vs Chrome's 200MB+
-//! - **Fast startup**: No browser process to spawn
-//! - **XSS Detection**: Built-in alert/confirm/prompt interception
-//! - **Full DOM API**: createElement, MutationObserver, localStorage
-//! - **Cookie management**: Full cookie jar support with auth tokens
-//! - **Network interception**: CDP-like request/response capture
-//! - **Form extraction**: Automatically detect forms with CSRF tokens
-//! - **Iframe handling**: Recursive frame processing with XSS hooks
-//! - **SPA route detection**: Vue/React/Angular route extraction
-//! - **WebSocket discovery**: Find WebSocket endpoints in JS
+//! - Lightweight: ~10MB vs Chrome's 200MB+
+//! - Fast startup: No browser process to spawn
+//! - XSS Detection: Built-in alert/confirm/prompt interception
+//! - Stored XSS: Complete stored XSS detection flow
+//! - Full DOM API: createElement, MutationObserver, localStorage
+//! - Cookie management: Full cookie jar support with auth tokens
+//! - Network interception: CDP-like request/response capture
+//! - Form extraction: Automatically detect forms with CSRF tokens
+//! - Iframe handling: Recursive frame processing with XSS hooks
+//! - SPA route detection: Vue/React/Angular route extraction
+//! - WebSocket discovery: Find WebSocket endpoints in JS
+//! - CSP Analysis: Parse and detect CSP bypasses
+//! - Browser Pool: Parallel scanning with page pooling
+//! - Framework Detection: Vue, React, Angular vulnerability patterns
 //!
 //! ## Example
 //!
@@ -40,19 +44,6 @@
 //!     Ok(())
 //! }
 //! ```
-//!
-//! ## Lonkero Integration
-//!
-//! Kalamari is designed as a drop-in replacement for Chrome headless in Lonkero:
-//!
-//! ```rust,no_run
-//! use kalamari::{Browser, RequestInterceptor, InterceptAction, AuthSession};
-//!
-//! // Request interception (replaces CDP Fetch protocol)
-//! // AuthSession extraction (cookies, localStorage, headers)
-//! // SPA route detection from JS bundles
-//! // WebSocket endpoint discovery
-//! ```
 
 pub mod browser;
 pub mod dom;
@@ -60,6 +51,7 @@ pub mod error;
 pub mod http;
 pub mod js;
 pub mod network;
+pub mod security;
 pub mod xss;
 
 // Re-exports for convenience
@@ -89,6 +81,18 @@ pub use browser::{
     WebSocketEndpoint, WebSocketDiscoveryMethod,
 };
 
+// Browser Pool
+pub use browser::{BrowserPool, PooledPage, PoolStats};
+
+// Framework detection
+pub use browser::{
+    FrameworkDetector, FrameworkInfo, Framework, FrameworkSink,
+    VueDetector, ReactDetector, AngularDetector,
+};
+
+// Metrics
+pub use browser::{BrowserMetrics, MetricsReport, MetricsTimer, MetricsOperation};
+
 // DOM
 pub use dom::{Document, Element, Node};
 
@@ -111,9 +115,15 @@ pub use network::{
     AuthHeaderInjector, RequestLogger, CookieCaptureInterceptor,
 };
 
+// Security
+pub use security::{CspAnalyzer, CspAnalysis, CspBypass, extract_csp_from_html};
+pub use security::{SriChecker, SriViolation, SriViolationType};
+pub use security::{DomClobberDetector, DomClobberResult, ClobberedElement};
+
 // XSS
-pub use xss::{XssDetector, XssTrigger, XssTriggerType};
+pub use xss::{XssDetector, XssTrigger, XssTriggerType, XssResult};
 pub use xss::{PayloadGenerator, XssPayload, PayloadContext};
+pub use xss::{StoredXssTest, StoredXssResult, StoredXssTester, stored_xss_payloads};
 
 /// Kalamari version
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

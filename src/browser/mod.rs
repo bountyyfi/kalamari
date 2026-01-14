@@ -14,6 +14,9 @@ mod iframe;
 mod pdf;
 mod session;
 mod scripts;
+mod pool;
+mod frameworks;
+mod metrics;
 
 pub use browser::Browser;
 pub use page::Page;
@@ -28,3 +31,9 @@ pub use scripts::{
     SpaRoute, SpaFramework,
     WebSocketEndpoint, WebSocketDiscoveryMethod,
 };
+pub use pool::{BrowserPool, PooledPage, PoolStats};
+pub use frameworks::{
+    FrameworkDetector, FrameworkInfo, Framework, FrameworkSink,
+    VueDetector, ReactDetector, AngularDetector,
+};
+pub use metrics::{BrowserMetrics, MetricsReport, MetricsTimer, MetricsOperation, MemorySnapshot};
