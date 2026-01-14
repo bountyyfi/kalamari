@@ -46,7 +46,8 @@ Built as a drop-in replacement for Chrome headless in security scanners like [Lo
 
 - **Browser Pool** - Parallel scanning with page pooling
 - **Metrics Collection** - Request latencies, page counts, XSS triggers
-- **Timer Control** - flush_timers() and wait_for_js_idle() for async JS
+- **Real Timer Queue** - Production-grade setTimeout/setInterval with unique IDs, clearTimeout/clearInterval, and flush_timers() for async JS control
+- **Console Capture** - Real console.log/error/warn/info/debug capture for debugging
 
 ## Lonkero Integration
 
@@ -383,7 +384,7 @@ Kalamari is optimized for security testing, not full browser emulation:
 
 - **No visual rendering** - CSS layout/painting not implemented
 - **No WebGL/Canvas** - Graphics APIs not supported
-- **Timer execution** - setTimeout/setInterval queued, use `flush_timers()` to execute
+- **Timer execution** - setTimeout/setInterval use real TimerQueue with unique IDs; use `flush_timers()` or `execute_ready_timers()` to execute
 - **No plugins** - Flash, PDF viewer, etc. not supported
 
 For features requiring full browser rendering, use the `chrome-pdf` feature.

@@ -12,8 +12,8 @@ use boa_engine::property::Attribute;
 use boa_engine::{js_string, Context, JsValue as BoaJsValue, NativeFunction, Source};
 use parking_lot::RwLock;
 
+use super::timers::TimerQueue;
 use super::value::JsValue;
-use crate::dom::Document;
 use crate::error::{Error, Result};
 use crate::xss::{XssTrigger, XssTriggerType};
 
@@ -50,6 +50,8 @@ pub struct JsRuntime {
     console_output: Arc<RwLock<Vec<ConsoleMessage>>>,
     /// Current document URL
     current_url: Arc<RwLock<Option<String>>>,
+    /// Timer queue for setTimeout/setInterval
+    timer_queue: Arc<TimerQueue>,
 }
 
 /// Console message type
@@ -77,6 +79,18 @@ impl JsRuntime {
             xss_triggers: Arc::new(RwLock::new(Vec::new())),
             console_output: Arc::new(RwLock::new(Vec::new())),
             current_url: Arc::new(RwLock::new(None)),
+            timer_queue: Arc::new(TimerQueue::new()),
+        }
+    }
+
+    /// Create a new JavaScript runtime with a custom timer queue
+    pub fn with_timer_queue(config: JsRuntimeConfig, timer_queue: Arc<TimerQueue>) -> Self {
+        Self {
+            config,
+            xss_triggers: Arc::new(RwLock::new(Vec::new())),
+            console_output: Arc::new(RwLock::new(Vec::new())),
+            current_url: Arc::new(RwLock::new(None)),
+            timer_queue,
         }
     }
 
@@ -114,8 +128,8 @@ impl JsRuntime {
             Self::install_console(&mut context, console_output)?;
         }
 
-        // Install basic browser globals
-        Self::install_browser_globals(&mut context, current_url.clone())?;
+        // Install basic browser globals with real timer support
+        Self::install_browser_globals(&mut context, current_url.clone(), self.timer_queue.clone())?;
 
         // Execute the code
         let result = context.eval(Source::from_bytes(code));
@@ -210,6 +224,55 @@ impl JsRuntime {
         self.console_output.write().clear();
     }
 
+    /// Get the timer queue for external timer management
+    pub fn timer_queue(&self) -> &Arc<TimerQueue> {
+        &self.timer_queue
+    }
+
+    /// Check if there are pending timers
+    pub fn has_pending_timers(&self) -> bool {
+        self.timer_queue.has_pending()
+    }
+
+    /// Get number of pending timers
+    pub fn pending_timer_count(&self) -> usize {
+        self.timer_queue.pending_count()
+    }
+
+    /// Flush all pending timers and execute their callbacks
+    /// Returns the number of timer callbacks executed
+    pub fn flush_timers(&self) -> Result<usize> {
+        let code_to_execute = self.timer_queue.flush_all();
+        let count = code_to_execute.len();
+
+        for code in code_to_execute {
+            // Execute each timer callback - ignore errors from individual callbacks
+            let _ = self.execute(&code);
+        }
+
+        Ok(count)
+    }
+
+    /// Execute ready timers (those whose delay has elapsed)
+    /// Returns the code strings that were executed
+    pub fn execute_ready_timers(&self) -> Result<Vec<String>> {
+        let ready = self.timer_queue.get_ready_timers();
+        let mut executed = Vec::new();
+
+        for entry in ready {
+            executed.push(entry.code.clone());
+            // Execute the timer callback
+            let _ = self.execute(&entry.code);
+        }
+
+        Ok(executed)
+    }
+
+    /// Clear all timers
+    pub fn clear_all_timers(&self) {
+        self.timer_queue.clear_all();
+    }
+
     /// Install XSS detection hooks (alert, confirm, prompt, etc.)
     /// These hooks use simple closures that throw on XSS-related calls,
     /// which we catch and record as XSS triggers.
@@ -296,42 +359,100 @@ impl JsRuntime {
         Ok(())
     }
 
-    /// Install console object
-    /// Console output is not captured in this version - use browser-level logging instead
+    /// Install console object with real output capture
     fn install_console(
         context: &mut Context,
-        _output: Arc<RwLock<Vec<ConsoleMessage>>>,
+        output: Arc<RwLock<Vec<ConsoleMessage>>>,
     ) -> Result<()> {
-        // Create console object with no-op implementations
-        // Console output capture is handled at a higher level if needed
         let console = boa_engine::JsObject::default();
 
-        // console.log - no-op for security testing (we don't need console output)
-        let log_fn = NativeFunction::from_fn_ptr(|_, _, _| Ok(BoaJsValue::undefined()));
+        // Helper to format console arguments into a string
+        fn format_args(args: &[BoaJsValue], ctx: &mut Context) -> String {
+            args.iter()
+                .filter_map(|v| v.to_string(ctx).ok())
+                .map(|s| s.to_std_string_escaped())
+                .collect::<Vec<_>>()
+                .join(" ")
+        }
+
+        // console.log - capture output
+        // SAFETY: The closure captures Arc<RwLock<Vec<ConsoleMessage>>> which is Send+Sync
+        // and the closure only accesses the captured data through thread-safe methods
+        let log_output = output.clone();
+        let log_fn = unsafe {
+            NativeFunction::from_closure(move |_, args, ctx| {
+                let message = format_args(args, ctx);
+                log_output.write().push(ConsoleMessage {
+                    level: ConsoleLevel::Log,
+                    message,
+                });
+                Ok(BoaJsValue::undefined())
+            })
+        };
         console
             .set(js_string!("log"), log_fn.to_js_function(context.realm()), false, context)
             .map_err(|e| Error::js(format!("Failed to set console.log: {:?}", e)))?;
 
-        // console.error
-        let error_fn = NativeFunction::from_fn_ptr(|_, _, _| Ok(BoaJsValue::undefined()));
+        // console.error - capture output
+        let error_output = output.clone();
+        let error_fn = unsafe {
+            NativeFunction::from_closure(move |_, args, ctx| {
+                let message = format_args(args, ctx);
+                error_output.write().push(ConsoleMessage {
+                    level: ConsoleLevel::Error,
+                    message,
+                });
+                Ok(BoaJsValue::undefined())
+            })
+        };
         console
             .set(js_string!("error"), error_fn.to_js_function(context.realm()), false, context)
             .map_err(|e| Error::js(format!("Failed to set console.error: {:?}", e)))?;
 
-        // console.warn
-        let warn_fn = NativeFunction::from_fn_ptr(|_, _, _| Ok(BoaJsValue::undefined()));
+        // console.warn - capture output
+        let warn_output = output.clone();
+        let warn_fn = unsafe {
+            NativeFunction::from_closure(move |_, args, ctx| {
+                let message = format_args(args, ctx);
+                warn_output.write().push(ConsoleMessage {
+                    level: ConsoleLevel::Warn,
+                    message,
+                });
+                Ok(BoaJsValue::undefined())
+            })
+        };
         console
             .set(js_string!("warn"), warn_fn.to_js_function(context.realm()), false, context)
             .map_err(|e| Error::js(format!("Failed to set console.warn: {:?}", e)))?;
 
-        // console.info
-        let info_fn = NativeFunction::from_fn_ptr(|_, _, _| Ok(BoaJsValue::undefined()));
+        // console.info - capture output
+        let info_output = output.clone();
+        let info_fn = unsafe {
+            NativeFunction::from_closure(move |_, args, ctx| {
+                let message = format_args(args, ctx);
+                info_output.write().push(ConsoleMessage {
+                    level: ConsoleLevel::Info,
+                    message,
+                });
+                Ok(BoaJsValue::undefined())
+            })
+        };
         console
             .set(js_string!("info"), info_fn.to_js_function(context.realm()), false, context)
             .map_err(|e| Error::js(format!("Failed to set console.info: {:?}", e)))?;
 
-        // console.debug
-        let debug_fn = NativeFunction::from_fn_ptr(|_, _, _| Ok(BoaJsValue::undefined()));
+        // console.debug - capture output
+        let debug_output = output;
+        let debug_fn = unsafe {
+            NativeFunction::from_closure(move |_, args, ctx| {
+                let message = format_args(args, ctx);
+                debug_output.write().push(ConsoleMessage {
+                    level: ConsoleLevel::Debug,
+                    message,
+                });
+                Ok(BoaJsValue::undefined())
+            })
+        };
         console
             .set(js_string!("debug"), debug_fn.to_js_function(context.realm()), false, context)
             .map_err(|e| Error::js(format!("Failed to set console.debug: {:?}", e)))?;
@@ -348,6 +469,7 @@ impl JsRuntime {
     fn install_browser_globals(
         context: &mut Context,
         current_url: Arc<RwLock<Option<String>>>,
+        timer_queue: Arc<TimerQueue>,
     ) -> Result<()> {
         // window object (self-referential)
         let window = boa_engine::JsObject::default();
@@ -434,29 +556,107 @@ impl JsRuntime {
             .register_global_property(js_string!("location"), location, Attribute::all())
             .ok();
 
-        // setTimeout/setInterval stubs (no-op for now)
-        let timeout_fn = NativeFunction::from_fn_ptr(|_, _, _| {
-            Ok(BoaJsValue::Integer(0)) // Return stub timer ID
-        });
+        // setTimeout - real implementation using TimerQueue
+        // SAFETY: The closure captures Arc<TimerQueue> which is Send+Sync
+        // and only accesses it through thread-safe methods
+        let timeout_queue = timer_queue.clone();
+        let timeout_fn = unsafe {
+            NativeFunction::from_closure(move |_, args, ctx| {
+                // Extract callback code (first argument - can be function or string)
+                let code = if let Some(first) = args.first() {
+                    if first.is_callable() {
+                        // For function callbacks, we convert to string representation
+                        first.to_string(ctx)
+                            .map(|s| s.to_std_string_escaped())
+                            .unwrap_or_else(|_| String::new())
+                    } else {
+                        first.to_string(ctx)
+                            .map(|s| s.to_std_string_escaped())
+                            .unwrap_or_else(|_| String::new())
+                    }
+                } else {
+                    return Ok(BoaJsValue::Integer(0));
+                };
+
+                // Extract delay (second argument, default 0)
+                let delay_ms = args
+                    .get(1)
+                    .and_then(|v| v.to_number(ctx).ok())
+                    .map(|n| n.max(0.0) as u64)
+                    .unwrap_or(0);
+
+                let timer_id = timeout_queue.set_timeout(code, delay_ms);
+                Ok(BoaJsValue::Integer(timer_id as i32))
+            })
+        };
         context
             .register_global_builtin_callable(js_string!("setTimeout"), 2, timeout_fn)
-            .ok();
+            .map_err(|e| Error::js(format!("Failed to register setTimeout: {:?}", e)))?;
 
-        let interval_fn = NativeFunction::from_fn_ptr(|_, _, _| {
-            Ok(BoaJsValue::Integer(0)) // Return stub timer ID
-        });
+        // setInterval - real implementation using TimerQueue
+        let interval_queue = timer_queue.clone();
+        let interval_fn = unsafe {
+            NativeFunction::from_closure(move |_, args, ctx| {
+                let code = if let Some(first) = args.first() {
+                    if first.is_callable() {
+                        first.to_string(ctx)
+                            .map(|s| s.to_std_string_escaped())
+                            .unwrap_or_else(|_| String::new())
+                    } else {
+                        first.to_string(ctx)
+                            .map(|s| s.to_std_string_escaped())
+                            .unwrap_or_else(|_| String::new())
+                    }
+                } else {
+                    return Ok(BoaJsValue::Integer(0));
+                };
+
+                // Extract interval (second argument, default 0, minimum 4ms per spec)
+                let interval_ms = args
+                    .get(1)
+                    .and_then(|v| v.to_number(ctx).ok())
+                    .map(|n| n.max(4.0) as u64)
+                    .unwrap_or(4);
+
+                let timer_id = interval_queue.set_interval(code, interval_ms);
+                Ok(BoaJsValue::Integer(timer_id as i32))
+            })
+        };
         context
             .register_global_builtin_callable(js_string!("setInterval"), 2, interval_fn)
-            .ok();
+            .map_err(|e| Error::js(format!("Failed to register setInterval: {:?}", e)))?;
 
-        let clear_timeout_fn = NativeFunction::from_fn_ptr(|_, _, _| Ok(BoaJsValue::undefined()));
+        // clearTimeout - real implementation
+        let clear_timeout_queue = timer_queue.clone();
+        let clear_timeout_fn = unsafe {
+            NativeFunction::from_closure(move |_, args, ctx| {
+                if let Some(id_val) = args.first() {
+                    if let Ok(id) = id_val.to_number(ctx) {
+                        clear_timeout_queue.clear_timer(id as u32);
+                    }
+                }
+                Ok(BoaJsValue::undefined())
+            })
+        };
         context
             .register_global_builtin_callable(js_string!("clearTimeout"), 1, clear_timeout_fn)
-            .ok();
-        let clear_interval_fn = NativeFunction::from_fn_ptr(|_, _, _| Ok(BoaJsValue::undefined()));
+            .map_err(|e| Error::js(format!("Failed to register clearTimeout: {:?}", e)))?;
+
+        // clearInterval - real implementation (same as clearTimeout per spec)
+        let clear_interval_queue = timer_queue;
+        let clear_interval_fn = unsafe {
+            NativeFunction::from_closure(move |_, args, ctx| {
+                if let Some(id_val) = args.first() {
+                    if let Ok(id) = id_val.to_number(ctx) {
+                        clear_interval_queue.clear_timer(id as u32);
+                    }
+                }
+                Ok(BoaJsValue::undefined())
+            })
+        };
         context
             .register_global_builtin_callable(js_string!("clearInterval"), 1, clear_interval_fn)
-            .ok();
+            .map_err(|e| Error::js(format!("Failed to register clearInterval: {:?}", e)))?;
 
         Ok(())
     }

@@ -705,11 +705,12 @@ fn create_element_from_dom(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use boa_engine::context::ContextBuilder;
 
     #[test]
     fn test_mock_element() {
-        let mut context = Context::default();
+        let mut context = ContextBuilder::default().build().unwrap();
         let elem = create_mock_element(&mut context, "div").unwrap();
-        assert!(elem.get("tagName", &mut context).is_ok());
+        assert!(elem.get(js_string!("tagName"), &mut context).is_ok());
     }
 }
