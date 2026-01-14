@@ -1,29 +1,50 @@
-# Kalamari 🦑
+# Kalamari
 
 **Lightweight Headless Browser for Security Testing**
 
+[Features](#features) | [Installation](#installation) | [Quick Start](#quick-start) | [API Reference](#api-reference) | [Lonkero Integration](#lonkero-integration)
+
+---
+
+## What is Kalamari?
+
 Kalamari is a pure Rust headless browser designed specifically for XSS scanning, web crawling, and security testing. Unlike traditional headless browsers that require Chrome/Chromium binaries (~200MB+), Kalamari is entirely self-contained with minimal dependencies.
+
+Built as a drop-in replacement for Chrome headless in security scanners like [Lonkero](https://github.com/bountyyfi/lonkero).
 
 ## Features
 
-- **🪶 Lightweight**: ~10MB vs Chrome's 200MB+ footprint
-- **🚀 Fast Startup**: No browser process to spawn
-- **🔒 XSS Detection**: Built-in alert/confirm/prompt interception
-- **🌐 Full DOM API**: createElement, MutationObserver, localStorage, etc.
-- **🍪 Cookie Management**: Full cookie jar support with auth tokens
-- **📡 Network Interception**: CDP-like request/response capture with middleware
-- **📝 Form Extraction**: Automatically detect forms with CSRF tokens
-- **🖼️ Iframe Handling**: Recursive frame processing with XSS hook injection
-- **🕷️ Crawler**: Built-in web crawler with configurable depth
-- **📄 PDF Generation**: Optional PDF reports (feature-gated)
-- **🔐 Auth Session**: Extract cookies, localStorage, JWT tokens after login
-- **🗺️ SPA Routes**: Detect Vue/React/Angular routes from JS bundles
-- **🔌 WebSocket Discovery**: Find WebSocket endpoints in JavaScript
-- **⏱️ Timer Control**: flush_timers() and wait_for_js_idle() for async JS
+### Core Browser
+
+- **Lightweight** - ~10MB binary vs Chrome's 200MB+ footprint
+- **Fast Startup** - No browser process to spawn, instant initialization
+- **Full DOM API** - createElement, MutationObserver, localStorage, sessionStorage
+- **Cookie Management** - Complete cookie jar with domain scoping and auth tokens
+- **Network Interception** - CDP-like request/response capture with middleware chain
+
+### Security Testing
+
+- **XSS Detection** - Built-in alert/confirm/prompt/eval interception
+- **Stored XSS Flow** - Complete stored XSS detection with form submission
+- **CSP Analysis** - Parse Content-Security-Policy, identify bypasses
+- **DOM Clobbering** - Detect clobbering vectors and form hijacking
+- **SRI Checking** - Identify missing/weak subresource integrity
+
+### Framework Support
+
+- **SPA Route Detection** - Extract routes from Vue, React, Angular bundles
+- **WebSocket Discovery** - Find WebSocket endpoints in JavaScript
+- **Framework Detectors** - Identify v-html, dangerouslySetInnerHTML, ng-bind-html sinks
+
+### Performance
+
+- **Browser Pool** - Parallel scanning with page pooling
+- **Metrics Collection** - Request latencies, page counts, XSS triggers
+- **Timer Control** - flush_timers() and wait_for_js_idle() for async JS
 
 ## Lonkero Integration
 
-Kalamari is designed as a drop-in replacement for Chrome headless in [Lonkero](https://github.com/bountyyfi/lonkero) security scanner. It addresses all key integration requirements:
+Kalamari addresses all key integration requirements for Lonkero:
 
 | Feature | Chrome-based | Kalamari |
 |---------|-------------|----------|
@@ -39,6 +60,8 @@ Kalamari is designed as a drop-in replacement for Chrome headless in [Lonkero](h
 | SPA routes | Manual | `ScriptAnalyzer` |
 | WebSocket discovery | Manual | `ScriptAnalyzer` |
 | Timer control | Native | `TimerQueue` |
+| CSP analysis | Manual | `CspAnalyzer` |
+| Parallel scanning | Thread pool | `BrowserPool` |
 
 ## Installation
 
@@ -81,7 +104,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-### XSS Scanning (Lonkero-compatible)
+### XSS Scanning
 
 ```rust
 use kalamari::{Browser, PageConfig, XssTriggerType};
@@ -91,10 +114,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let browser = Browser::for_security_scanning().await?;
     let page = browser.new_page_with_config(PageConfig::for_xss_scanning()).await?;
 
-    // Navigate with XSS payload
     page.navigate("https://target.com/search?q=<script>alert(1)</script>").await?;
 
-    // Check for XSS triggers
     let result = page.analyze_xss();
     for trigger in result.triggers {
         if trigger.is_confirmed() {
@@ -102,46 +123,85 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // Test custom payload
-    let triggers = page.test_xss_payload("alert('XSS')");
-    if !triggers.is_empty() {
-        println!("Payload executed!");
+    Ok(())
+}
+```
+
+### Stored XSS Detection
+
+```rust
+use kalamari::{StoredXssTest, StoredXssTester};
+
+let test = StoredXssTest::new("https://example.com/post", "<script>alert(1)</script>")
+    .field("comment")
+    .reflect_at("https://example.com/posts")
+    .reflect_at("https://example.com/profile");
+
+let tester = StoredXssTester::new();
+// Execute test via page methods
+```
+
+### CSP Analysis
+
+```rust
+use kalamari::{CspAnalyzer, CspBypass};
+
+let analyzer = CspAnalyzer::new();
+let csp = "default-src 'self'; script-src 'self' 'unsafe-inline'";
+let analysis = analyzer.parse(csp);
+
+println!("Security Score: {}/100", analysis.security_score);
+println!("Blocks inline: {}", analysis.blocks_inline);
+
+for bypass in &analysis.bypasses {
+    println!("Bypass: {:?} - {}", bypass, bypass.description());
+}
+```
+
+### Parallel Scanning with Browser Pool
+
+```rust
+use kalamari::BrowserPool;
+use std::sync::Arc;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let pool = BrowserPool::new(8).await?;  // 8 browsers
+
+    let urls = vec![
+        "https://example.com/page1".to_string(),
+        "https://example.com/page2".to_string(),
+        "https://example.com/page3".to_string(),
+    ];
+
+    let results = pool.map(&urls, |page, url| async move {
+        page.navigate(&url).await?;
+        Ok(page.analyze_xss())
+    }).await;
+
+    for result in results {
+        if let Ok(xss) = result {
+            if xss.is_vulnerable() {
+                println!("XSS found!");
+            }
+        }
     }
 
     Ok(())
 }
 ```
 
-### Request Interception (CDP Fetch Replacement)
+### Request Interception
 
 ```rust
 use kalamari::{Browser, RequestInterceptor, InterceptAction, AuthHeaderInjector};
-use kalamari::http::Request;
-use async_trait::async_trait;
-
-// Custom interceptor - like CDP Fetch protocol
-struct TokenInjector {
-    token: String,
-}
-
-#[async_trait]
-impl RequestInterceptor for TokenInjector {
-    async fn before_request(&self, req: &mut Request) -> InterceptAction {
-        // Inject auth header into ALL requests (like CDP Fetch.continueRequest)
-        req.headers.insert(
-            "authorization".parse().unwrap(),
-            format!("Bearer {}", self.token).parse().unwrap()
-        );
-        InterceptAction::Continue
-    }
-}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let browser = Browser::launch().await?;
 
     // Use built-in auth injector
-    let _auth = AuthHeaderInjector::new()
+    let auth = AuthHeaderInjector::new()
         .bearer_token("your-jwt-token")
         .header("x-api-key", "secret");
 
@@ -150,112 +210,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-```
-
-### Iframe Handling with XSS Hook Injection
-
-```rust
-use kalamari::{Browser, FrameHandler, FrameTree};
-use kalamari::browser::XSS_HOOK_SCRIPT;
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let browser = Browser::launch().await?;
-    let page = browser.new_page().await?;
-
-    page.navigate("https://example.com").await?;
-
-    // Process all iframes recursively (up to depth 3)
-    let handler = FrameHandler::new(browser.client().clone())
-        .max_depth(3)
-        .execute_js(true);
-
-    // XSS hooks are injected into each frame context
-    // including: alert, confirm, prompt, eval, innerHTML
-
-    // Get XSS triggers from all frames
-    let all_triggers = handler.get_xss_triggers();
-    for trigger in all_triggers {
-        println!("Frame XSS: {:?}", trigger);
-    }
-
-    Ok(())
-}
-```
-
-### Form Extraction with CSRF Detection
-
-```rust
-use kalamari::Browser;
-use kalamari::browser::FormSubmitter;
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let browser = Browser::launch().await?;
-    let page = browser.new_page().await?;
-
-    page.navigate("https://example.com/login").await?;
-
-    for mut form in page.forms() {
-        println!("Form: {} {}", form.method, form.action.as_deref().unwrap_or("/"));
-
-        // Detect CSRF token
-        if let Some(token) = form.csrf_token() {
-            println!("  CSRF Token: {}", token);
-        }
-
-        // Auto-fill with test data
-        let submitter = FormSubmitter::new();
-        submitter.fill_defaults(&mut form);
-    }
-
-    Ok(())
-}
-```
-
-### Web Crawling
-
-```rust
-use kalamari::{Browser, Crawler, CrawlConfig};
-use std::sync::Arc;
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let browser = Arc::new(Browser::launch().await?);
-
-    let config = CrawlConfig::new()
-        .max_depth(3)
-        .max_pages(100)
-        .same_domain_only(true)
-        .exclude("logout");
-
-    let crawler = Crawler::new(browser, config);
-    let results = crawler.crawl("https://example.com").await?;
-
-    println!("Crawled {} pages", results.len());
-    for result in results {
-        println!("{} [{}] - {} forms", result.url, result.status, result.forms.len());
-    }
-
-    Ok(())
-}
-```
-
-### PDF Generation (Feature-gated)
-
-```rust
-use kalamari::browser::{PrintToPdfOptions, create_pdf_generator};
-
-// Enable with: kalamari = { features = ["pdf"] }
-
-let generator = create_pdf_generator();
-let options = PrintToPdfOptions::a4()
-    .margins(0.5)
-    .header("<div>Report Header</div>")
-    .footer("<div>Page <span class='pageNumber'></span></div>");
-
-let pdf_bytes = generator.generate_pdf(&html, &options)?;
-std::fs::write("report.pdf", pdf_bytes)?;
 ```
 
 ### Auth Session Extraction
@@ -268,22 +222,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let browser = Browser::launch().await?;
     let page = browser.new_page().await?;
 
-    // Navigate to login and authenticate
     page.navigate("https://example.com/login").await?;
     // ... perform login ...
 
-    // Extract auth session (cookies, localStorage, headers)
     let session = page.extract_auth_session();
 
     println!("Session ID: {:?}", session.session_id);
     println!("Bearer Token: {:?}", session.bearer_token);
     println!("CSRF Token: {:?}", session.csrf_token);
     println!("Authenticated: {}", session.is_authenticated);
-
-    // Use session for subsequent requests
-    if let Some(auth_header) = session.authorization_header() {
-        println!("Auth Header: {}", auth_header);
-    }
 
     Ok(())
 }
@@ -294,7 +241,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```rust
 use kalamari::{ScriptAnalyzer, ScriptSource};
 
-// Extract SPA routes from JavaScript bundles (Vue/React/Angular)
 let analyzer = ScriptAnalyzer::new();
 let scripts = page.get_script_sources();
 
@@ -308,41 +254,27 @@ for script in &scripts {
     // Find WebSocket endpoints
     let ws_endpoints = analyzer.find_websocket_endpoints(script);
     for endpoint in ws_endpoints {
-        println!("WebSocket: {} ({:?})", endpoint.url, endpoint.discovery_method);
-    }
-
-    // Find API endpoints
-    let api_endpoints = analyzer.find_api_endpoints(script);
-    for endpoint in api_endpoints {
-        println!("API: {}", endpoint);
+        println!("WebSocket: {}", endpoint.url);
     }
 }
 ```
 
-### JavaScript Timer Control
+### Framework Detection
 
 ```rust
-use kalamari::{TimerQueue, JsIdleConfig};
+use kalamari::FrameworkDetector;
 
-// Lonkero pattern for waiting on async JS:
-// std::thread::sleep(Duration::from_millis(500));
-// let result = tab.evaluate(&js_code, true).await?;
+let detector = FrameworkDetector::new();
+let html = page.content()?;
+let scripts = page.get_script_sources();
+let script_contents: Vec<String> = scripts.iter().map(|s| s.content.clone()).collect();
 
-// Kalamari equivalent:
-let timer_queue = TimerQueue::new();
-
-// Execute all pending setTimeout/setInterval immediately
-let code_to_execute = timer_queue.flush_all();
-for code in code_to_execute {
-    runtime.execute(&code)?;
-}
-
-// Or flush with a limit (prevent infinite loops)
-let code = timer_queue.flush_limited(100);
-
-// Check if there are pending timers
-if timer_queue.has_pending() {
-    println!("Still {} pending timers", timer_queue.pending_count());
+let frameworks = detector.detect_all(&html, &script_contents);
+for fw in frameworks {
+    println!("Framework: {:?} {:?}", fw.framework, fw.version);
+    for sink in fw.sinks {
+        println!("  Sink: {} (risk: {})", sink.name, sink.risk);
+    }
 }
 ```
 
@@ -362,34 +294,6 @@ kalamari crawl https://example.com
 kalamari forms https://example.com/login
 ```
 
-## JavaScript API Coverage
-
-Kalamari implements browser-compatible JavaScript APIs that Lonkero's XSS scanner expects:
-
-### DOM API
-- `document.createElement()`, `document.createTextNode()`
-- `document.getElementById()`, `document.querySelector()`, `document.querySelectorAll()`
-- `document.write()`, `document.writeln()` (XSS sinks - monitored)
-- `element.innerHTML`, `element.outerHTML`, `element.textContent`
-- `element.getAttribute()`, `element.setAttribute()`, `element.removeAttribute()`
-- `element.appendChild()`, `element.removeChild()`, `element.insertBefore()`
-- `element.addEventListener()`, `element.removeEventListener()`
-- `element.classList.add()`, `element.classList.remove()`, `element.classList.contains()`
-
-### Browser APIs
-- `MutationObserver` - Stub for DOM change detection
-- `localStorage`, `sessionStorage` - Full implementation
-- `XMLHttpRequest` - Stub with readyState tracking
-- `fetch()` - Stub with Promise-like interface
-- `Event`, `CustomEvent` - Event construction
-- `DOMParser` - HTML parsing
-
-### XSS Hooks (Auto-injected)
-- `alert()`, `confirm()`, `prompt()` - Intercepted and logged as XSS triggers
-- `eval()`, `Function()` - Monitored for suspicious content
-- `innerHTML` setter - Monitored for script injection
-- `document.write()` - Monitored as XSS sink
-
 ## Architecture
 
 ```
@@ -407,11 +311,46 @@ Kalamari implements browser-compatible JavaScript APIs that Lonkero's XSS scanne
 │  └──────────────┘  └──────────────┘  └──────────────────┘   │
 │         │                  │                   │             │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐   │
-│  │   Cookie     │  │    Form      │  │    Crawler       │   │
-│  │     Jar      │  │  Extractor   │  │                  │   │
+│  │   Cookie     │  │    Form      │  │    Security      │   │
+│  │     Jar      │  │  Extractor   │  │   (CSP, SRI)     │   │
 │  └──────────────┘  └──────────────┘  └──────────────────┘   │
 └──────────────────────────────────────────────────────────────┘
 ```
+
+## API Reference
+
+### Browser Module
+
+| Type | Description |
+|------|-------------|
+| `Browser` | Main browser instance |
+| `Page` | Individual page/tab |
+| `BrowserPool` | Pool for parallel scanning |
+| `BrowserMetrics` | Performance metrics |
+
+### Security Module
+
+| Type | Description |
+|------|-------------|
+| `CspAnalyzer` | CSP parsing and bypass detection |
+| `SriChecker` | Subresource integrity validation |
+| `DomClobberDetector` | DOM clobbering detection |
+
+### XSS Module
+
+| Type | Description |
+|------|-------------|
+| `XssDetector` | XSS trigger detection |
+| `StoredXssTest` | Stored XSS test configuration |
+| `PayloadGenerator` | XSS payload generation |
+
+### Network Module
+
+| Type | Description |
+|------|-------------|
+| `RequestInterceptor` | Request/response middleware |
+| `NetworkEvent` | Captured network events |
+| `AuthHeaderInjector` | Auth header injection |
 
 ## Feature Flags
 
@@ -425,23 +364,23 @@ Kalamari implements browser-compatible JavaScript APIs that Lonkero's XSS scanne
 
 ## Dependencies
 
-| Crate | Purpose | Notes |
-|-------|---------|-------|
-| `boa_engine` | JavaScript execution | Pure Rust, no external binaries |
-| `html5ever` | HTML parsing | Spec-compliant HTML5 parser |
-| `reqwest` | HTTP client | rustls for TLS (no OpenSSL) |
-| `tokio` | Async runtime | Industry standard |
+| Crate | Purpose |
+|-------|---------|
+| `boa_engine` | JavaScript execution (pure Rust) |
+| `html5ever` | HTML parsing (spec-compliant) |
+| `reqwest` | HTTP client (rustls TLS) |
+| `tokio` | Async runtime |
 
 ## Limitations
 
 Kalamari is optimized for security testing, not full browser emulation:
 
-- **No visual rendering**: CSS layout/painting not implemented
-- **No WebGL/Canvas**: Graphics APIs not supported
-- **Timer execution**: setTimeout/setInterval queued, use `flush_timers()` to execute
-- **No plugins**: Flash, PDF viewer, etc. not supported
+- **No visual rendering** - CSS layout/painting not implemented
+- **No WebGL/Canvas** - Graphics APIs not supported
+- **Timer execution** - setTimeout/setInterval queued, use `flush_timers()` to execute
+- **No plugins** - Flash, PDF viewer, etc. not supported
 
-For features requiring full browser rendering (screenshots, visual testing), use the `chrome-pdf` feature which falls back to headless_chrome.
+For features requiring full browser rendering, use the `chrome-pdf` feature.
 
 ## License
 
