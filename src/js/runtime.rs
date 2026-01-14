@@ -7,7 +7,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use boa_engine::context::ContextBuilder;
-use boa_engine::job::{FutureJob, JobQueue, NativeJob};
 use boa_engine::property::Attribute;
 use boa_engine::{js_string, Context, JsValue as BoaJsValue, NativeFunction, Source};
 use parking_lot::RwLock;
@@ -114,7 +113,6 @@ impl JsRuntime {
 
         // Create a new context for each execution
         let mut context = ContextBuilder::new()
-            .job_queue(Rc::new(SimpleJobQueue))
             .build()
             .map_err(|e| Error::js(format!("Failed to create JS context: {:?}", e)))?;
 
@@ -364,7 +362,7 @@ impl JsRuntime {
         context: &mut Context,
         output: Arc<RwLock<Vec<ConsoleMessage>>>,
     ) -> Result<()> {
-        let console = boa_engine::JsObject::default();
+        let console = boa_engine::JsObject::default(context.intrinsics());
 
         // Helper to format console arguments into a string
         fn format_args(args: &[BoaJsValue], ctx: &mut Context) -> String {
@@ -472,10 +470,10 @@ impl JsRuntime {
         timer_queue: Arc<TimerQueue>,
     ) -> Result<()> {
         // window object (self-referential)
-        let window = boa_engine::JsObject::default();
+        let window = boa_engine::JsObject::default(context.intrinsics());
 
         // location object
-        let location = boa_engine::JsObject::default();
+        let location = boa_engine::JsObject::default(context.intrinsics());
         let url = current_url.read().clone().unwrap_or_default();
 
         if let Ok(parsed) = url::Url::parse(&url) {
@@ -522,7 +520,7 @@ impl JsRuntime {
         window.set(js_string!("location"), BoaJsValue::from(location.clone()), false, context).ok();
 
         // navigator object
-        let navigator = boa_engine::JsObject::default();
+        let navigator = boa_engine::JsObject::default(context.intrinsics());
         navigator
             .set(
                 js_string!("userAgent"),
@@ -538,7 +536,7 @@ impl JsRuntime {
             .set(js_string!("platform"), BoaJsValue::from(js_string!("Linux")), false, context)
             .ok();
         navigator
-            .set(js_string!("cookieEnabled"), BoaJsValue::Boolean(true), false, context)
+            .set(js_string!("cookieEnabled"), BoaJsValue::from(true), false, context)
             .ok();
         window.set(js_string!("navigator"), BoaJsValue::from(navigator), false, context).ok();
 
@@ -575,7 +573,7 @@ impl JsRuntime {
                             .unwrap_or_else(|_| String::new())
                     }
                 } else {
-                    return Ok(BoaJsValue::Integer(0));
+                    return Ok(BoaJsValue::from(0));
                 };
 
                 // Extract delay (second argument, default 0)
@@ -586,7 +584,7 @@ impl JsRuntime {
                     .unwrap_or(0);
 
                 let timer_id = timeout_queue.set_timeout(code, delay_ms);
-                Ok(BoaJsValue::Integer(timer_id as i32))
+                Ok(BoaJsValue::from(timer_id as i32))
             })
         };
         context
@@ -608,7 +606,7 @@ impl JsRuntime {
                             .unwrap_or_else(|_| String::new())
                     }
                 } else {
-                    return Ok(BoaJsValue::Integer(0));
+                    return Ok(BoaJsValue::from(0));
                 };
 
                 // Extract interval (second argument, default 0, minimum 4ms per spec)
@@ -619,7 +617,7 @@ impl JsRuntime {
                     .unwrap_or(4);
 
                 let timer_id = interval_queue.set_interval(code, interval_ms);
-                Ok(BoaJsValue::Integer(timer_id as i32))
+                Ok(BoaJsValue::from(timer_id as i32))
             })
         };
         context
@@ -679,22 +677,7 @@ impl JsRuntime {
     }
 }
 
-/// Simple job queue for boa_engine (no async support)
-struct SimpleJobQueue;
-
-impl JobQueue for SimpleJobQueue {
-    fn enqueue_promise_job(&self, _job: NativeJob, _context: &mut Context) {
-        // Ignore promise jobs for now
-    }
-
-    fn enqueue_future_job(&self, _future: FutureJob, _context: &mut Context) {
-        // Ignore future jobs
-    }
-
-    fn run_jobs(&self, _context: &mut Context) {
-        // No-op
-    }
-}
+// Job queue handling removed - boa 0.21 uses default queue
 
 #[cfg(test)]
 mod tests {

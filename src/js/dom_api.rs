@@ -74,7 +74,7 @@ impl DomApiInstaller {
 
     /// Install document API
     fn install_document_api(&self, context: &mut Context) -> Result<(), crate::error::Error> {
-        let document_obj = JsObject::default();
+        let document_obj = JsObject::default(context.intrinsics());
         let xss_triggers = self.xss_triggers.clone();
         let current_url = self.current_url.clone();
         let doc = self.document.clone();
@@ -106,8 +106,8 @@ impl DomApiInstaller {
                 .map(|s| s.to_std_string_escaped())
                 .unwrap_or_default();
 
-            let node = JsObject::default();
-            node.set(js_string!("nodeType"), JsValue::Integer(3), false, ctx).ok();
+            let node = JsObject::default(ctx.intrinsics());
+            node.set(js_string!("nodeType"), JsValue::from(3), false, ctx).ok();
             node.set(js_string!("textContent"), JsValue::from(js_string!(text.clone())), false, ctx).ok();
             node.set(js_string!("nodeValue"), JsValue::from(js_string!(text)), false, ctx).ok();
             Ok(node.into())
@@ -224,7 +224,7 @@ impl DomApiInstaller {
         // MutationObserver constructor - creates observer objects without actual DOM observation
         // This is sufficient for security testing where we're focused on XSS detection
         let mutation_observer_ctor = NativeFunction::from_fn_ptr(|_, _args, ctx| {
-            let observer = JsObject::default();
+            let observer = JsObject::default(ctx.intrinsics());
 
             // observe method - no-op stub
             let observe_fn = NativeFunction::from_fn_ptr(|_, _args, _ctx| {
@@ -257,12 +257,12 @@ impl DomApiInstaller {
     /// Install DOMParser
     fn install_dom_parser(&self, context: &mut Context) -> Result<(), crate::error::Error> {
         let dom_parser_ctor = NativeFunction::from_fn_ptr(|_, _, ctx| {
-            let parser = JsObject::default();
+            let parser = JsObject::default(ctx.intrinsics());
 
             // parseFromString method
             let parse_fn = NativeFunction::from_fn_ptr(|_, args, ctx| {
                 // Return mock document
-                let doc = JsObject::default();
+                let doc = JsObject::default(ctx.intrinsics());
                 let html_elem = create_mock_element(ctx, "html")
                     .map_err(|e| boa_engine::JsError::from_opaque(JsValue::from(js_string!(e.to_string()))))?;
                 doc.set(js_string!("documentElement"), JsValue::from(html_elem), false, ctx).ok();
@@ -291,11 +291,11 @@ impl DomApiInstaller {
                 .map(|s| s.to_std_string_escaped())
                 .unwrap_or_else(|| "event".to_string());
 
-            let event = JsObject::default();
+            let event = JsObject::default(ctx.intrinsics());
             event.set(js_string!("type"), JsValue::from(js_string!(event_type)), false, ctx).ok();
-            event.set(js_string!("bubbles"), JsValue::Boolean(false), false, ctx).ok();
-            event.set(js_string!("cancelable"), JsValue::Boolean(false), false, ctx).ok();
-            event.set(js_string!("defaultPrevented"), JsValue::Boolean(false), false, ctx).ok();
+            event.set(js_string!("bubbles"), JsValue::from(false), false, ctx).ok();
+            event.set(js_string!("cancelable"), JsValue::from(false), false, ctx).ok();
+            event.set(js_string!("defaultPrevented"), JsValue::from(false), false, ctx).ok();
 
             let prevent_default = NativeFunction::from_fn_ptr(|_, _, _| {
                 Ok(JsValue::undefined())
@@ -323,11 +323,11 @@ impl DomApiInstaller {
                 .map(|s| s.to_std_string_escaped())
                 .unwrap_or_else(|| "customevent".to_string());
 
-            let event = JsObject::default();
+            let event = JsObject::default(ctx.intrinsics());
             event.set(js_string!("type"), JsValue::from(js_string!(event_type)), false, ctx).ok();
-            event.set(js_string!("bubbles"), JsValue::Boolean(false), false, ctx).ok();
-            event.set(js_string!("cancelable"), JsValue::Boolean(false), false, ctx).ok();
-            event.set(js_string!("defaultPrevented"), JsValue::Boolean(false), false, ctx).ok();
+            event.set(js_string!("bubbles"), JsValue::from(false), false, ctx).ok();
+            event.set(js_string!("cancelable"), JsValue::from(false), false, ctx).ok();
+            event.set(js_string!("defaultPrevented"), JsValue::from(false), false, ctx).ok();
             event.set(js_string!("detail"), JsValue::null(), false, ctx).ok();
 
             let prevent_default = NativeFunction::from_fn_ptr(|_, _, _| Ok(JsValue::undefined()));
@@ -351,7 +351,7 @@ impl DomApiInstaller {
         // Create storage objects with basic stubs
         // Note: Storage is not persistent between executions - this is intentional for security testing
         fn create_storage(ctx: &mut Context) -> JsObject {
-            let storage = JsObject::default();
+            let storage = JsObject::default(ctx.intrinsics());
 
             // getItem - returns null (no persistent storage)
             let get_item = NativeFunction::from_fn_ptr(|_, _args, _ctx| {
@@ -383,7 +383,7 @@ impl DomApiInstaller {
             storage.set(js_string!("removeItem"), remove_item.to_js_function(ctx.realm()), false, ctx).ok();
             storage.set(js_string!("clear"), clear.to_js_function(ctx.realm()), false, ctx).ok();
             storage.set(js_string!("key"), key.to_js_function(ctx.realm()), false, ctx).ok();
-            storage.set(js_string!("length"), JsValue::Integer(0), false, ctx).ok();
+            storage.set(js_string!("length"), JsValue::from(0), false, ctx).ok();
 
             storage
         }
@@ -405,10 +405,10 @@ impl DomApiInstaller {
     /// Provides a stub implementation for XMLHttpRequest API compatibility
     fn install_xhr_api(&self, _context: &mut Context) -> Result<(), crate::error::Error> {
         let xhr_ctor = NativeFunction::from_fn_ptr(|_, _, ctx| {
-            let xhr = JsObject::default();
+            let xhr = JsObject::default(ctx.intrinsics());
 
-            xhr.set(js_string!("readyState"), JsValue::Integer(0), false, ctx).ok();
-            xhr.set(js_string!("status"), JsValue::Integer(0), false, ctx).ok();
+            xhr.set(js_string!("readyState"), JsValue::from(0), false, ctx).ok();
+            xhr.set(js_string!("status"), JsValue::from(0), false, ctx).ok();
             xhr.set(js_string!("statusText"), JsValue::from(js_string!("")), false, ctx).ok();
             xhr.set(js_string!("responseText"), JsValue::from(js_string!("")), false, ctx).ok();
             xhr.set(js_string!("responseXML"), JsValue::null(), false, ctx).ok();
@@ -431,7 +431,7 @@ impl DomApiInstaller {
                 if let Some(obj) = this.as_object() {
                     obj.set(js_string!("_method"), JsValue::from(js_string!(method)), false, ctx).ok();
                     obj.set(js_string!("_url"), JsValue::from(js_string!(url)), false, ctx).ok();
-                    obj.set(js_string!("readyState"), JsValue::Integer(1), false, ctx).ok();
+                    obj.set(js_string!("readyState"), JsValue::from(1), false, ctx).ok();
                 }
                 Ok(JsValue::undefined())
             });
@@ -440,8 +440,8 @@ impl DomApiInstaller {
             // send method
             let send = NativeFunction::from_fn_ptr(|this, _args, ctx| {
                 if let Some(obj) = this.as_object() {
-                    obj.set(js_string!("readyState"), JsValue::Integer(4), false, ctx).ok();
-                    obj.set(js_string!("status"), JsValue::Integer(200), false, ctx).ok();
+                    obj.set(js_string!("readyState"), JsValue::from(4), false, ctx).ok();
+                    obj.set(js_string!("status"), JsValue::from(200), false, ctx).ok();
                     obj.set(js_string!("statusText"), JsValue::from(js_string!("OK")), false, ctx).ok();
                 }
                 Ok(JsValue::undefined())
@@ -488,16 +488,16 @@ impl DomApiInstaller {
         // fetch returns a Promise-like object
         let fetch_fn = NativeFunction::from_fn_ptr(|_, _args, ctx| {
             // Return a promise-like object
-            let promise = JsObject::default();
+            let promise = JsObject::default(ctx.intrinsics());
 
             let then_fn = NativeFunction::from_fn_ptr(|_, args, ctx| {
                 // Mock response
-                let response = JsObject::default();
-                response.set(js_string!("ok"), JsValue::Boolean(true), false, ctx).ok();
-                response.set(js_string!("status"), JsValue::Integer(200), false, ctx).ok();
+                let response = JsObject::default(ctx.intrinsics());
+                response.set(js_string!("ok"), JsValue::from(true), false, ctx).ok();
+                response.set(js_string!("status"), JsValue::from(200), false, ctx).ok();
 
                 let text_fn = NativeFunction::from_fn_ptr(|_, _, ctx| {
-                    let inner_promise = JsObject::default();
+                    let inner_promise = JsObject::default(ctx.intrinsics());
                     let inner_then = NativeFunction::from_fn_ptr(|_, args, ctx| {
                         if let Some(callback) = args.first().and_then(|v| v.as_callable()) {
                             callback.call(&JsValue::undefined(), &[JsValue::from(js_string!(""))], ctx).ok();
@@ -510,10 +510,10 @@ impl DomApiInstaller {
                 response.set(js_string!("text"), text_fn.to_js_function(ctx.realm()), false, ctx).ok();
 
                 let json_fn = NativeFunction::from_fn_ptr(|_, _, ctx| {
-                    let inner_promise = JsObject::default();
+                    let inner_promise = JsObject::default(ctx.intrinsics());
                     let inner_then = NativeFunction::from_fn_ptr(|_, args, ctx| {
                         if let Some(callback) = args.first().and_then(|v| v.as_callable()) {
-                            callback.call(&JsValue::undefined(), &[JsObject::default().into()], ctx).ok();
+                            callback.call(&JsValue::undefined(), &[JsObject::default(ctx.intrinsics()).into()], ctx).ok();
                         }
                         Ok(JsValue::undefined())
                     });
@@ -549,11 +549,11 @@ impl DomApiInstaller {
 
 /// Create a mock element object
 fn create_mock_element(ctx: &mut Context, tag: &str) -> Result<JsObject, crate::error::Error> {
-    let element = JsObject::default();
+    let element = JsObject::default(ctx.intrinsics());
 
     element.set(js_string!("tagName"), JsValue::from(js_string!(tag.to_uppercase())), false, ctx).ok();
     element.set(js_string!("nodeName"), JsValue::from(js_string!(tag.to_uppercase())), false, ctx).ok();
-    element.set(js_string!("nodeType"), JsValue::Integer(1), false, ctx).ok();
+    element.set(js_string!("nodeType"), JsValue::from(1), false, ctx).ok();
     element.set(js_string!("innerHTML"), JsValue::from(js_string!("")), false, ctx).ok();
     element.set(js_string!("outerHTML"), JsValue::from(js_string!(format!("<{0}></{0}>", tag))), false, ctx).ok();
     element.set(js_string!("textContent"), JsValue::from(js_string!("")), false, ctx).ok();
@@ -589,7 +589,7 @@ fn create_mock_element(ctx: &mut Context, tag: &str) -> Result<JsObject, crate::
 
     // hasAttribute
     let has_attr = NativeFunction::from_fn_ptr(|_, _, _| {
-        Ok(JsValue::Boolean(false))
+        Ok(JsValue::from(false))
     });
     element.set(js_string!("hasAttribute"), has_attr.to_js_function(ctx.realm()), false, ctx).ok();
 
@@ -618,8 +618,8 @@ fn create_mock_element(ctx: &mut Context, tag: &str) -> Result<JsObject, crate::
     element.set(js_string!("replaceChild"), replace_child.to_js_function(ctx.realm()), false, ctx).ok();
 
     // cloneNode
-    let clone_node = NativeFunction::from_fn_ptr(|_, _, _ctx| {
-        Ok(JsObject::default().into())
+    let clone_node = NativeFunction::from_fn_ptr(|_, _, ctx| {
+        Ok(JsObject::default(ctx.intrinsics()).into())
     });
     element.set(js_string!("cloneNode"), clone_node.to_js_function(ctx.realm()), false, ctx).ok();
 
@@ -637,7 +637,7 @@ fn create_mock_element(ctx: &mut Context, tag: &str) -> Result<JsObject, crate::
 
     // dispatchEvent
     let dispatch = NativeFunction::from_fn_ptr(|_, _, _| {
-        Ok(JsValue::Boolean(true))
+        Ok(JsValue::from(true))
     });
     element.set(js_string!("dispatchEvent"), dispatch.to_js_function(ctx.realm()), false, ctx).ok();
 
@@ -653,19 +653,19 @@ fn create_mock_element(ctx: &mut Context, tag: &str) -> Result<JsObject, crate::
     element.set(js_string!("querySelectorAll"), query_all.to_js_function(ctx.realm()), false, ctx).ok();
 
     // classList
-    let class_list = JsObject::default();
+    let class_list = JsObject::default(ctx.intrinsics());
     let add_class = NativeFunction::from_fn_ptr(|_, _, _| Ok(JsValue::undefined()));
     class_list.set(js_string!("add"), add_class.to_js_function(ctx.realm()), false, ctx).ok();
     let remove_class = NativeFunction::from_fn_ptr(|_, _, _| Ok(JsValue::undefined()));
     class_list.set(js_string!("remove"), remove_class.to_js_function(ctx.realm()), false, ctx).ok();
     let toggle_class = NativeFunction::from_fn_ptr(|_, _, _| Ok(JsValue::undefined()));
     class_list.set(js_string!("toggle"), toggle_class.to_js_function(ctx.realm()), false, ctx).ok();
-    let contains = NativeFunction::from_fn_ptr(|_, _, _| Ok(JsValue::Boolean(false)));
+    let contains = NativeFunction::from_fn_ptr(|_, _, _| Ok(JsValue::from(false)));
     class_list.set(js_string!("contains"), contains.to_js_function(ctx.realm()), false, ctx).ok();
     element.set(js_string!("classList"), JsValue::from(class_list), false, ctx).ok();
 
     // style object
-    let style = JsObject::default();
+    let style = JsObject::default(ctx.intrinsics());
     element.set(js_string!("style"), JsValue::from(style), false, ctx).ok();
 
     // focus/blur/click
