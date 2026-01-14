@@ -40,7 +40,7 @@ markup5ever_rcdom = "0.3"
 
 # CSS selectors
 selectors = "0.25"
-cssparser = "0.33"
+cssparser = "0.36"
 
 # JavaScript engine - pure Rust, no external binaries
 boa_engine = "0.19"
@@ -56,7 +56,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 # Error handling
-thiserror = "1.0"
+thiserror = "2.0"
 anyhow = "1.0"
 
 # Logging
