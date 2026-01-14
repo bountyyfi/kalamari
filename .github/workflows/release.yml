@@ -90,7 +90,7 @@ jobs:
           ref: ${{ needs.version-bump.outputs.version || github.ref }}
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-action@stable
+        uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
@@ -218,7 +218,7 @@ jobs:
           ref: ${{ needs.version-bump.outputs.version || github.ref }}
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-action@stable
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Verify package
         run: cargo publish --dry-run
