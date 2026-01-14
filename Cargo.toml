@@ -90,7 +90,7 @@ full = ["websocket", "pdf"]
 websocket = ["tokio-tungstenite"]
 pdf = ["printpdf"]
 [dependencies.tokio-tungstenite]
-version = "0.21"
+version = "0.28"
 optional = true
 
 [dependencies.printpdf]
