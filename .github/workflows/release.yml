@@ -29,6 +29,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,22 +43,25 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Update version in Cargo.toml
+        id: bump
         run: |
           sed -i 's/^version = ".*"/version = "${{ inputs.version }}"/' Cargo.toml
           cargo check --quiet 2>/dev/null || true
+          echo "version=v${{ inputs.version }}" >> $GITHUB_OUTPUT
 
       - name: Commit and tag
         run: |
           git add Cargo.toml Cargo.lock
-          git commit -m "chore: bump version to ${{ inputs.version }}"
-          git tag -a "v${{ inputs.version }}" -m "Release v${{ inputs.version }}"
-          git push origin main --follow-tags
+          git commit -m "chore: bump version to ${{ inputs.version }}" || echo "No changes to commit"
+          git tag -a "v${{ inputs.version }}" -m "Release v${{ inputs.version }}" || echo "Tag already exists"
+          git push origin HEAD --follow-tags
 
   # Build binaries for multiple platforms
   build:
     name: Build ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
-    if: github.event_name != 'workflow_dispatch'
+    needs: [version-bump]
+    if: always() && (needs.version-bump.result == 'success' || needs.version-bump.result == 'skipped')
     strategy:
       fail-fast: false
       matrix:
@@ -81,6 +86,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version-bump.outputs.version || github.ref }}
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-action@stable
@@ -132,11 +139,13 @@ jobs:
   # Create GitHub release with all artifacts
   release:
     name: Create Release
-    needs: build
+    needs: [version-bump, build]
     runs-on: ubuntu-latest
-    if: github.event_name != 'workflow_dispatch'
+    if: always() && needs.build.result == 'success'
     permissions:
       contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -161,7 +170,9 @@ jobs:
       - name: Get version
         id: version
         run: |
-          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+          if [[ -n "${{ needs.version-bump.outputs.version }}" ]]; then
+            echo "version=${{ needs.version-bump.outputs.version }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
             echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           else
             echo "version=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
@@ -194,15 +205,17 @@ jobs:
             ### Checksums
             See `SHA256SUMS.txt` for file checksums.
 
-  # Publish to crates.io
+  # Publish to crates.io - runs for ALL release methods
   publish:
     name: Publish to crates.io
-    needs: release
+    needs: [version-bump, release]
     runs-on: ubuntu-latest
-    if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/')
+    if: always() && needs.release.result == 'success'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version-bump.outputs.version || github.ref }}
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-action@stable
