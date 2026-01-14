@@ -35,7 +35,7 @@ reqwest = { version = "0.12", default-features = false, features = [
 ] }
 
 # HTML parsing - spec compliant, fast
-html5ever = "0.37"
+html5ever = "0.27"
 markup5ever_rcdom = "0.3"
 
 # CSS selectors

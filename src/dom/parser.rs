@@ -34,7 +34,7 @@ pub fn parse_html_with_url(html: &str, url: Option<Url>) -> Result<Document> {
     let dom = parse_document(RcDom::default(), opts)
         .from_utf8()
         .read_from(&mut html.as_bytes())
-        .map_err(|e| Error::HtmlParse(e.to_string()))?;
+        .unwrap();
 
     let mut doc = match url {
         Some(u) => Document::with_url(u),
