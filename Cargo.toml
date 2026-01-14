@@ -1,6 +1,6 @@
 [package]
 name = "kalamari"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
 rust-version = "1.75"
 authors = ["Bountyy Oy <info@bountyy.fi>"]
@@ -92,15 +92,15 @@ pdf = ["printpdf"]
 chrome-pdf = ["headless_chrome"]
 
 [dependencies.tokio-tungstenite]
-version = "0.21"
+version = "0.0.1"
 optional = true
 
 [dependencies.printpdf]
-version = "0.6"
+version = "0.0.1"
 optional = true
 
 [dependencies.headless_chrome]
-version = "1.0"
+version = "0.0.1"
 optional = true
 
 [profile.release]
