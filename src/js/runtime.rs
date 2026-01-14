@@ -8,7 +8,7 @@ use std::sync::Arc;
 use boa_engine::context::ContextBuilder;
 use boa_engine::job::{FutureJob, JobQueue, NativeJob};
 use boa_engine::property::Attribute;
-use boa_engine::{Context, JsResult, JsValue as BoaJsValue, NativeFunction, Source};
+use boa_engine::{js_string, Context, JsResult, JsValue as BoaJsValue, NativeFunction, Source};
 use parking_lot::RwLock;
 
 use super::value::JsValue;
@@ -314,7 +314,7 @@ impl JsRuntime {
             Ok(BoaJsValue::undefined())
         });
         console
-            .set("log", log_fn.to_js_function(context.realm()), false, context)
+            .set(js_string!("log"), log_fn.to_js_function(context.realm()), false, context)
             .map_err(|e| Error::js(format!("Failed to set console.log: {:?}", e)))?;
 
         // console.error
@@ -338,7 +338,7 @@ impl JsRuntime {
             Ok(BoaJsValue::undefined())
         });
         console
-            .set("error", error_fn.to_js_function(context.realm()), false, context)
+            .set(js_string!("error"), error_fn.to_js_function(context.realm()), false, context)
             .map_err(|e| Error::js(format!("Failed to set console.error: {:?}", e)))?;
 
         // console.warn
@@ -362,7 +362,7 @@ impl JsRuntime {
             Ok(BoaJsValue::undefined())
         });
         console
-            .set("warn", warn_fn.to_js_function(context.realm()), false, context)
+            .set(js_string!("warn"), warn_fn.to_js_function(context.realm()), false, context)
             .map_err(|e| Error::js(format!("Failed to set console.warn: {:?}", e)))?;
 
         // console.info
@@ -386,12 +386,12 @@ impl JsRuntime {
             Ok(BoaJsValue::undefined())
         });
         console
-            .set("info", info_fn.to_js_function(context.realm()), false, context)
+            .set(js_string!("info"), info_fn.to_js_function(context.realm()), false, context)
             .map_err(|e| Error::js(format!("Failed to set console.info: {:?}", e)))?;
 
         // Register console globally
         context
-            .register_global_property("console", console, Attribute::all())
+            .register_global_property(js_string!("console"), console, Attribute::all())
             .map_err(|e| Error::js(format!("Failed to register console: {:?}", e)))?;
 
         Ok(())
@@ -411,34 +411,34 @@ impl JsRuntime {
 
         if let Ok(parsed) = url::Url::parse(&url) {
             location
-                .set("href", parsed.as_str(), false, context)
+                .set(js_string!("href"), parsed.as_str(), false, context)
                 .ok();
             location
-                .set("protocol", format!("{}:", parsed.scheme()), false, context)
+                .set(js_string!("protocol"), format!("{}:", parsed.scheme()), false, context)
                 .ok();
             location
-                .set("host", parsed.host_str().unwrap_or(""), false, context)
+                .set(js_string!("host"), parsed.host_str().unwrap_or(""), false, context)
                 .ok();
             location
-                .set("hostname", parsed.host_str().unwrap_or(""), false, context)
+                .set(js_string!("hostname"), parsed.host_str().unwrap_or(""), false, context)
                 .ok();
             location
-                .set("pathname", parsed.path(), false, context)
+                .set(js_string!("pathname"), parsed.path(), false, context)
                 .ok();
             location
-                .set("search", parsed.query().unwrap_or(""), false, context)
+                .set(js_string!("search"), parsed.query().unwrap_or(""), false, context)
                 .ok();
             location
-                .set("hash", parsed.fragment().unwrap_or(""), false, context)
+                .set(js_string!("hash"), parsed.fragment().unwrap_or(""), false, context)
                 .ok();
             if let Some(port) = parsed.port() {
-                location.set("port", port.to_string(), false, context).ok();
+                location.set(js_string!("port"), port.to_string(), false, context).ok();
             } else {
-                location.set("port", "", false, context).ok();
+                location.set(js_string!("port"), "", false, context).ok();
             }
             location
                 .set(
-                    "origin",
+                    js_string!("origin"),
                     format!(
                         "{}://{}",
                         parsed.scheme(),
@@ -450,41 +450,41 @@ impl JsRuntime {
                 .ok();
         }
 
-        window.set("location", location.clone(), false, context).ok();
+        window.set(js_string!("location"), location.clone(), false, context).ok();
 
         // navigator object
         let navigator = boa_engine::JsObject::default();
         navigator
             .set(
-                "userAgent",
+                js_string!("userAgent"),
                 "Kalamari/1.0 (Headless Browser)",
                 false,
                 context,
             )
             .ok();
         navigator
-            .set("language", "en-US", false, context)
+            .set(js_string!("language"), "en-US", false, context)
             .ok();
         navigator
-            .set("platform", "Linux", false, context)
+            .set(js_string!("platform"), "Linux", false, context)
             .ok();
         navigator
-            .set("cookieEnabled", true, false, context)
+            .set(js_string!("cookieEnabled"), true, false, context)
             .ok();
-        window.set("navigator", navigator, false, context).ok();
+        window.set(js_string!("navigator"), navigator, false, context).ok();
 
         // Register globals
         context
-            .register_global_property("window", window.clone(), Attribute::all())
+            .register_global_property(js_string!("window"), window.clone(), Attribute::all())
             .ok();
         context
-            .register_global_property("self", window.clone(), Attribute::all())
+            .register_global_property(js_string!("self"), window.clone(), Attribute::all())
             .ok();
         context
-            .register_global_property("globalThis", window.clone(), Attribute::all())
+            .register_global_property(js_string!("globalThis"), window.clone(), Attribute::all())
             .ok();
         context
-            .register_global_property("location", location, Attribute::all())
+            .register_global_property(js_string!("location"), location, Attribute::all())
             .ok();
 
         // setTimeout/setInterval stubs (no-op for now)

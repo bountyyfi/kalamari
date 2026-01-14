@@ -10,7 +10,7 @@ use std::sync::Arc;
 use boa_engine::context::ContextBuilder;
 use boa_engine::object::builtins::JsFunction;
 use boa_engine::property::Attribute;
-use boa_engine::{Context, JsObject, JsResult, JsValue, NativeFunction, Source};
+use boa_engine::{js_string, Context, JsObject, JsResult, JsValue, NativeFunction, Source};
 use parking_lot::RwLock;
 
 use crate::dom::Document;
@@ -93,7 +93,7 @@ impl DomApiInstaller {
             Ok(element.into())
         });
         document_obj
-            .set("createElement", create_element.to_js_function(context.realm()), false, context)
+            .set(js_string!("createElement"), create_element.to_js_function(context.realm()), false, context)
             .ok();
 
         // document.createTextNode
@@ -106,13 +106,13 @@ impl DomApiInstaller {
                 .unwrap_or_default();
 
             let node = JsObject::default();
-            node.set("nodeType", 3, false, ctx).ok();
-            node.set("textContent", text.clone(), false, ctx).ok();
-            node.set("nodeValue", text, false, ctx).ok();
+            node.set(js_string!("nodeType"), 3, false, ctx).ok();
+            node.set(js_string!("textContent"), text.clone(), false, ctx).ok();
+            node.set(js_string!("nodeValue"), text, false, ctx).ok();
             Ok(node.into())
         });
         document_obj
-            .set("createTextNode", create_text.to_js_function(context.realm()), false, context)
+            .set(js_string!("createTextNode"), create_text.to_js_function(context.realm()), false, context)
             .ok();
 
         // document.getElementById
@@ -135,7 +135,7 @@ impl DomApiInstaller {
             Ok(JsValue::null())
         });
         document_obj
-            .set("getElementById", get_by_id.to_js_function(context.realm()), false, context)
+            .set(js_string!("getElementById"), get_by_id.to_js_function(context.realm()), false, context)
             .ok();
 
         // document.querySelector
@@ -157,7 +157,7 @@ impl DomApiInstaller {
             Ok(JsValue::null())
         });
         document_obj
-            .set("querySelector", query_selector.to_js_function(context.realm()), false, context)
+            .set(js_string!("querySelector"), query_selector.to_js_function(context.realm()), false, context)
             .ok();
 
         // document.querySelectorAll
@@ -183,7 +183,7 @@ impl DomApiInstaller {
             Ok(array.into())
         });
         document_obj
-            .set("querySelectorAll", query_all.to_js_function(context.realm()), false, context)
+            .set(js_string!("querySelectorAll"), query_all.to_js_function(context.realm()), false, context)
             .ok();
 
         // document.write - XSS sink!
@@ -208,14 +208,14 @@ impl DomApiInstaller {
             Ok(JsValue::undefined())
         });
         document_obj
-            .set("write", doc_write.to_js_function(context.realm()), false, context)
+            .set(js_string!("write"), doc_write.to_js_function(context.realm()), false, context)
             .ok();
         document_obj
-            .set("writeln", doc_write.to_js_function(context.realm()), false, context)
+            .set(js_string!("writeln"), doc_write.to_js_function(context.realm()), false, context)
             .ok();
 
         // document.cookie
-        document_obj.set("cookie", "", false, context).ok();
+        document_obj.set(js_string!("cookie"), "", false, context).ok();
 
         // document.domain
         let domain = current_url
@@ -224,29 +224,29 @@ impl DomApiInstaller {
             .and_then(|u| url::Url::parse(u).ok())
             .and_then(|u| u.host_str().map(String::from))
             .unwrap_or_default();
-        document_obj.set("domain", domain, false, context).ok();
+        document_obj.set(js_string!("domain"), domain, false, context).ok();
 
         // document.URL
         let url_str = current_url.read().clone().unwrap_or_default();
-        document_obj.set("URL", url_str.clone(), false, context).ok();
-        document_obj.set("documentURI", url_str.clone(), false, context).ok();
+        document_obj.set(js_string!("URL"), url_str.clone(), false, context).ok();
+        document_obj.set(js_string!("documentURI"), url_str.clone(), false, context).ok();
 
         // document.referrer
-        document_obj.set("referrer", "", false, context).ok();
+        document_obj.set(js_string!("referrer"), "", false, context).ok();
 
         // document.body / document.head (mock elements)
         let body = create_mock_element(context, "body")?;
         let head = create_mock_element(context, "head")?;
-        document_obj.set("body", body, false, context).ok();
-        document_obj.set("head", head, false, context).ok();
+        document_obj.set(js_string!("body"), body, false, context).ok();
+        document_obj.set(js_string!("head"), head, false, context).ok();
 
         // document.documentElement
         let html = create_mock_element(context, "html")?;
-        document_obj.set("documentElement", html, false, context).ok();
+        document_obj.set(js_string!("documentElement"), html, false, context).ok();
 
         // Register document globally
         context
-            .register_global_property("document", document_obj, Attribute::all())
+            .register_global_property(js_string!("document"), document_obj, Attribute::all())
             .ok();
 
         Ok(())
@@ -278,26 +278,26 @@ impl DomApiInstaller {
                 id
             };
 
-            observer.set("_callbackId", callback_id as f64, false, ctx).ok();
+            observer.set(js_string!("_callbackId"), callback_id as f64, false, ctx).ok();
 
             // observe method
             let observe_fn = NativeFunction::from_copy_closure(|_, args, ctx| {
                 // In real implementation, would track what to observe
                 Ok(JsValue::undefined())
             });
-            observer.set("observe", observe_fn.to_js_function(ctx.realm()), false, ctx).ok();
+            observer.set(js_string!("observe"), observe_fn.to_js_function(ctx.realm()), false, ctx).ok();
 
             // disconnect method
             let disconnect_fn = NativeFunction::from_copy_closure(|_, _, _| {
                 Ok(JsValue::undefined())
             });
-            observer.set("disconnect", disconnect_fn.to_js_function(ctx.realm()), false, ctx).ok();
+            observer.set(js_string!("disconnect"), disconnect_fn.to_js_function(ctx.realm()), false, ctx).ok();
 
             // takeRecords method
             let take_records = NativeFunction::from_copy_closure(|_, _, ctx| {
                 Ok(boa_engine::object::builtins::JsArray::new(ctx).into())
             });
-            observer.set("takeRecords", take_records.to_js_function(ctx.realm()), false, ctx).ok();
+            observer.set(js_string!("takeRecords"), take_records.to_js_function(ctx.realm()), false, ctx).ok();
 
             Ok(observer.into())
         });
@@ -325,10 +325,10 @@ impl DomApiInstaller {
 
                 // Return mock document
                 let doc = JsObject::default();
-                doc.set("documentElement", create_mock_element(ctx, "html")?, false, ctx).ok();
+                doc.set(js_string!("documentElement"), create_mock_element(ctx, "html")?, false, ctx).ok();
                 Ok(doc.into())
             });
-            parser.set("parseFromString", parse_fn.to_js_function(ctx.realm()), false, ctx).ok();
+            parser.set(js_string!("parseFromString"), parse_fn.to_js_function(ctx.realm()), false, ctx).ok();
 
             Ok(parser.into())
         });
@@ -352,20 +352,20 @@ impl DomApiInstaller {
                 .unwrap_or_else(|| "event".to_string());
 
             let event = JsObject::default();
-            event.set("type", event_type, false, ctx).ok();
-            event.set("bubbles", false, false, ctx).ok();
-            event.set("cancelable", false, false, ctx).ok();
-            event.set("defaultPrevented", false, false, ctx).ok();
+            event.set(js_string!("type"), event_type, false, ctx).ok();
+            event.set(js_string!("bubbles"), false, false, ctx).ok();
+            event.set(js_string!("cancelable"), false, false, ctx).ok();
+            event.set(js_string!("defaultPrevented"), false, false, ctx).ok();
 
             let prevent_default = NativeFunction::from_copy_closure(|_, _, _| {
                 Ok(JsValue::undefined())
             });
-            event.set("preventDefault", prevent_default.to_js_function(ctx.realm()), false, ctx).ok();
+            event.set(js_string!("preventDefault"), prevent_default.to_js_function(ctx.realm()), false, ctx).ok();
 
             let stop_propagation = NativeFunction::from_copy_closure(|_, _, _| {
                 Ok(JsValue::undefined())
             });
-            event.set("stopPropagation", stop_propagation.to_js_function(ctx.realm()), false, ctx).ok();
+            event.set(js_string!("stopPropagation"), stop_propagation.to_js_function(ctx.realm()), false, ctx).ok();
 
             Ok(event.into())
         });
@@ -442,10 +442,10 @@ impl DomApiInstaller {
                 Ok(JsValue::undefined())
             });
 
-            storage.set("getItem", get_item.to_js_function(ctx.realm()), false, ctx).ok();
-            storage.set("setItem", set_item.to_js_function(ctx.realm()), false, ctx).ok();
-            storage.set("removeItem", remove_item.to_js_function(ctx.realm()), false, ctx).ok();
-            storage.set("clear", clear.to_js_function(ctx.realm()), false, ctx).ok();
+            storage.set(js_string!("getItem"), get_item.to_js_function(ctx.realm()), false, ctx).ok();
+            storage.set(js_string!("setItem"), set_item.to_js_function(ctx.realm()), false, ctx).ok();
+            storage.set(js_string!("removeItem"), remove_item.to_js_function(ctx.realm()), false, ctx).ok();
+            storage.set(js_string!("clear"), clear.to_js_function(ctx.realm()), false, ctx).ok();
 
             storage
         };
@@ -454,10 +454,10 @@ impl DomApiInstaller {
         let session_storage = create_storage(context);
 
         context
-            .register_global_property("localStorage", local_storage, Attribute::all())
+            .register_global_property(js_string!("localStorage"), local_storage, Attribute::all())
             .ok();
         context
-            .register_global_property("sessionStorage", session_storage, Attribute::all())
+            .register_global_property(js_string!("sessionStorage"), session_storage, Attribute::all())
             .ok();
 
         Ok(())
@@ -470,11 +470,11 @@ impl DomApiInstaller {
         let xhr_ctor = NativeFunction::from_copy_closure(move |_, _, ctx| {
             let xhr = JsObject::default();
 
-            xhr.set("readyState", 0, false, ctx).ok();
-            xhr.set("status", 0, false, ctx).ok();
-            xhr.set("statusText", "", false, ctx).ok();
-            xhr.set("responseText", "", false, ctx).ok();
-            xhr.set("responseXML", JsValue::null(), false, ctx).ok();
+            xhr.set(js_string!("readyState"), 0, false, ctx).ok();
+            xhr.set(js_string!("status"), 0, false, ctx).ok();
+            xhr.set(js_string!("statusText"), "", false, ctx).ok();
+            xhr.set(js_string!("responseText"), "", false, ctx).ok();
+            xhr.set(js_string!("responseXML"), JsValue::null(), false, ctx).ok();
 
             // open method
             let open = NativeFunction::from_copy_closure(|this, args, ctx| {
@@ -492,48 +492,48 @@ impl DomApiInstaller {
                     .unwrap_or_default();
 
                 if let Some(obj) = this.as_object() {
-                    obj.set("_method", method, false, ctx).ok();
-                    obj.set("_url", url, false, ctx).ok();
-                    obj.set("readyState", 1, false, ctx).ok();
+                    obj.set(js_string!("_method"), method, false, ctx).ok();
+                    obj.set(js_string!("_url"), url, false, ctx).ok();
+                    obj.set(js_string!("readyState"), 1, false, ctx).ok();
                 }
                 Ok(JsValue::undefined())
             });
-            xhr.set("open", open.to_js_function(ctx.realm()), false, ctx).ok();
+            xhr.set(js_string!("open"), open.to_js_function(ctx.realm()), false, ctx).ok();
 
             // send method
             let send = NativeFunction::from_copy_closure(|this, args, ctx| {
                 if let Some(obj) = this.as_object() {
-                    obj.set("readyState", 4, false, ctx).ok();
-                    obj.set("status", 200, false, ctx).ok();
-                    obj.set("statusText", "OK", false, ctx).ok();
+                    obj.set(js_string!("readyState"), 4, false, ctx).ok();
+                    obj.set(js_string!("status"), 200, false, ctx).ok();
+                    obj.set(js_string!("statusText"), "OK", false, ctx).ok();
                 }
                 Ok(JsValue::undefined())
             });
-            xhr.set("send", send.to_js_function(ctx.realm()), false, ctx).ok();
+            xhr.set(js_string!("send"), send.to_js_function(ctx.realm()), false, ctx).ok();
 
             // setRequestHeader
             let set_header = NativeFunction::from_copy_closure(|_, _, _| {
                 Ok(JsValue::undefined())
             });
-            xhr.set("setRequestHeader", set_header.to_js_function(ctx.realm()), false, ctx).ok();
+            xhr.set(js_string!("setRequestHeader"), set_header.to_js_function(ctx.realm()), false, ctx).ok();
 
             // getResponseHeader
             let get_header = NativeFunction::from_copy_closure(|_, _, _| {
                 Ok(JsValue::null())
             });
-            xhr.set("getResponseHeader", get_header.to_js_function(ctx.realm()), false, ctx).ok();
+            xhr.set(js_string!("getResponseHeader"), get_header.to_js_function(ctx.realm()), false, ctx).ok();
 
             // getAllResponseHeaders
             let get_all_headers = NativeFunction::from_copy_closure(|_, _, _| {
                 Ok(JsValue::from(""))
             });
-            xhr.set("getAllResponseHeaders", get_all_headers.to_js_function(ctx.realm()), false, ctx).ok();
+            xhr.set(js_string!("getAllResponseHeaders"), get_all_headers.to_js_function(ctx.realm()), false, ctx).ok();
 
             // abort
             let abort = NativeFunction::from_copy_closure(|_, _, _| {
                 Ok(JsValue::undefined())
             });
-            xhr.set("abort", abort.to_js_function(ctx.realm()), false, ctx).ok();
+            xhr.set(js_string!("abort"), abort.to_js_function(ctx.realm()), false, ctx).ok();
 
             Ok(xhr.into())
         });
@@ -555,8 +555,8 @@ impl DomApiInstaller {
             let then_fn = NativeFunction::from_copy_closure(|_, args, ctx| {
                 // Mock response
                 let response = JsObject::default();
-                response.set("ok", true, false, ctx).ok();
-                response.set("status", 200, false, ctx).ok();
+                response.set(js_string!("ok"), true, false, ctx).ok();
+                response.set(js_string!("status"), 200, false, ctx).ok();
 
                 let text_fn = NativeFunction::from_copy_closure(|_, _, ctx| {
                     let inner_promise = JsObject::default();
@@ -566,10 +566,10 @@ impl DomApiInstaller {
                         }
                         Ok(JsValue::undefined())
                     });
-                    inner_promise.set("then", inner_then.to_js_function(ctx.realm()), false, ctx).ok();
+                    inner_promise.set(js_string!("then"), inner_then.to_js_function(ctx.realm()), false, ctx).ok();
                     Ok(inner_promise.into())
                 });
-                response.set("text", text_fn.to_js_function(ctx.realm()), false, ctx).ok();
+                response.set(js_string!("text"), text_fn.to_js_function(ctx.realm()), false, ctx).ok();
 
                 let json_fn = NativeFunction::from_copy_closure(|_, _, ctx| {
                     let inner_promise = JsObject::default();
@@ -579,10 +579,10 @@ impl DomApiInstaller {
                         }
                         Ok(JsValue::undefined())
                     });
-                    inner_promise.set("then", inner_then.to_js_function(ctx.realm()), false, ctx).ok();
+                    inner_promise.set(js_string!("then"), inner_then.to_js_function(ctx.realm()), false, ctx).ok();
                     Ok(inner_promise.into())
                 });
-                response.set("json", json_fn.to_js_function(ctx.realm()), false, ctx).ok();
+                response.set(js_string!("json"), json_fn.to_js_function(ctx.realm()), false, ctx).ok();
 
                 // Call the callback with response
                 if let Some(callback) = args.first().and_then(|v| v.as_callable()) {
@@ -591,12 +591,12 @@ impl DomApiInstaller {
 
                 Ok(JsValue::undefined())
             });
-            promise.set("then", then_fn.to_js_function(ctx.realm()), false, ctx).ok();
+            promise.set(js_string!("then"), then_fn.to_js_function(ctx.realm()), false, ctx).ok();
 
             let catch_fn = NativeFunction::from_copy_closure(|this, _, _| {
                 Ok(this.clone())
             });
-            promise.set("catch", catch_fn.to_js_function(ctx.realm()), false, ctx).ok();
+            promise.set(js_string!("catch"), catch_fn.to_js_function(ctx.realm()), false, ctx).ok();
 
             Ok(promise.into())
         });
@@ -613,111 +613,111 @@ impl DomApiInstaller {
 fn create_mock_element(ctx: &mut Context, tag: &str) -> Result<JsObject, crate::error::Error> {
     let element = JsObject::default();
 
-    element.set("tagName", tag.to_uppercase(), false, ctx).ok();
-    element.set("nodeName", tag.to_uppercase(), false, ctx).ok();
-    element.set("nodeType", 1, false, ctx).ok();
-    element.set("innerHTML", "", false, ctx).ok();
-    element.set("outerHTML", format!("<{0}></{0}>", tag), false, ctx).ok();
-    element.set("textContent", "", false, ctx).ok();
-    element.set("className", "", false, ctx).ok();
-    element.set("id", "", false, ctx).ok();
+    element.set(js_string!("tagName"), tag.to_uppercase(), false, ctx).ok();
+    element.set(js_string!("nodeName"), tag.to_uppercase(), false, ctx).ok();
+    element.set(js_string!("nodeType"), 1, false, ctx).ok();
+    element.set(js_string!("innerHTML"), "", false, ctx).ok();
+    element.set(js_string!("outerHTML"), format!("<{0}></{0}>", tag), false, ctx).ok();
+    element.set(js_string!("textContent"), "", false, ctx).ok();
+    element.set(js_string!("className"), "", false, ctx).ok();
+    element.set(js_string!("id"), "", false, ctx).ok();
 
     // children array
     let children = boa_engine::object::builtins::JsArray::new(ctx);
-    element.set("children", children.clone(), false, ctx).ok();
-    element.set("childNodes", children, false, ctx).ok();
+    element.set(js_string!("children"), children.clone(), false, ctx).ok();
+    element.set(js_string!("childNodes"), children, false, ctx).ok();
 
     // parentNode/Element
-    element.set("parentNode", JsValue::null(), false, ctx).ok();
-    element.set("parentElement", JsValue::null(), false, ctx).ok();
+    element.set(js_string!("parentNode"), JsValue::null(), false, ctx).ok();
+    element.set(js_string!("parentElement"), JsValue::null(), false, ctx).ok();
 
     // getAttribute
     let get_attr = NativeFunction::from_copy_closure(|_, _, _| {
         Ok(JsValue::null())
     });
-    element.set("getAttribute", get_attr.to_js_function(ctx.realm()), false, ctx).ok();
+    element.set(js_string!("getAttribute"), get_attr.to_js_function(ctx.realm()), false, ctx).ok();
 
     // setAttribute
     let set_attr = NativeFunction::from_copy_closure(|_, _, _| {
         Ok(JsValue::undefined())
     });
-    element.set("setAttribute", set_attr.to_js_function(ctx.realm()), false, ctx).ok();
+    element.set(js_string!("setAttribute"), set_attr.to_js_function(ctx.realm()), false, ctx).ok();
 
     // removeAttribute
-    element.set("removeAttribute", set_attr.to_js_function(ctx.realm()), false, ctx).ok();
+    element.set(js_string!("removeAttribute"), set_attr.to_js_function(ctx.realm()), false, ctx).ok();
 
     // hasAttribute
     let has_attr = NativeFunction::from_copy_closure(|_, _, _| {
         Ok(JsValue::Boolean(false))
     });
-    element.set("hasAttribute", has_attr.to_js_function(ctx.realm()), false, ctx).ok();
+    element.set(js_string!("hasAttribute"), has_attr.to_js_function(ctx.realm()), false, ctx).ok();
 
     // appendChild
     let append_child = NativeFunction::from_copy_closure(|_, args, _| {
         Ok(args.first().cloned().unwrap_or(JsValue::undefined()))
     });
-    element.set("appendChild", append_child.to_js_function(ctx.realm()), false, ctx).ok();
+    element.set(js_string!("appendChild"), append_child.to_js_function(ctx.realm()), false, ctx).ok();
 
     // removeChild
-    element.set("removeChild", append_child.to_js_function(ctx.realm()), false, ctx).ok();
+    element.set(js_string!("removeChild"), append_child.to_js_function(ctx.realm()), false, ctx).ok();
 
     // insertBefore
-    element.set("insertBefore", append_child.to_js_function(ctx.realm()), false, ctx).ok();
+    element.set(js_string!("insertBefore"), append_child.to_js_function(ctx.realm()), false, ctx).ok();
 
     // replaceChild
-    element.set("replaceChild", append_child.to_js_function(ctx.realm()), false, ctx).ok();
+    element.set(js_string!("replaceChild"), append_child.to_js_function(ctx.realm()), false, ctx).ok();
 
     // cloneNode
     let clone_node = NativeFunction::from_copy_closure(move |_, _, ctx| {
         Ok(JsObject::default().into())
     });
-    element.set("cloneNode", clone_node.to_js_function(ctx.realm()), false, ctx).ok();
+    element.set(js_string!("cloneNode"), clone_node.to_js_function(ctx.realm()), false, ctx).ok();
 
     // addEventListener
     let add_event = NativeFunction::from_copy_closure(|_, _, _| {
         Ok(JsValue::undefined())
     });
-    element.set("addEventListener", add_event.to_js_function(ctx.realm()), false, ctx).ok();
+    element.set(js_string!("addEventListener"), add_event.to_js_function(ctx.realm()), false, ctx).ok();
 
     // removeEventListener
-    element.set("removeEventListener", add_event.to_js_function(ctx.realm()), false, ctx).ok();
+    element.set(js_string!("removeEventListener"), add_event.to_js_function(ctx.realm()), false, ctx).ok();
 
     // dispatchEvent
     let dispatch = NativeFunction::from_copy_closure(|_, _, _| {
         Ok(JsValue::Boolean(true))
     });
-    element.set("dispatchEvent", dispatch.to_js_function(ctx.realm()), false, ctx).ok();
+    element.set(js_string!("dispatchEvent"), dispatch.to_js_function(ctx.realm()), false, ctx).ok();
 
     // querySelector/querySelectorAll
     let query = NativeFunction::from_copy_closure(|_, _, _| {
         Ok(JsValue::null())
     });
-    element.set("querySelector", query.to_js_function(ctx.realm()), false, ctx).ok();
+    element.set(js_string!("querySelector"), query.to_js_function(ctx.realm()), false, ctx).ok();
 
     let query_all = NativeFunction::from_copy_closure(|_, _, ctx| {
         Ok(boa_engine::object::builtins::JsArray::new(ctx).into())
     });
-    element.set("querySelectorAll", query_all.to_js_function(ctx.realm()), false, ctx).ok();
+    element.set(js_string!("querySelectorAll"), query_all.to_js_function(ctx.realm()), false, ctx).ok();
 
     // classList
     let class_list = JsObject::default();
     let add_class = NativeFunction::from_copy_closure(|_, _, _| Ok(JsValue::undefined()));
-    class_list.set("add", add_class.to_js_function(ctx.realm()), false, ctx).ok();
-    class_list.set("remove", add_class.to_js_function(ctx.realm()), false, ctx).ok();
-    class_list.set("toggle", add_class.to_js_function(ctx.realm()), false, ctx).ok();
+    class_list.set(js_string!("add"), add_class.to_js_function(ctx.realm()), false, ctx).ok();
+    class_list.set(js_string!("remove"), add_class.to_js_function(ctx.realm()), false, ctx).ok();
+    class_list.set(js_string!("toggle"), add_class.to_js_function(ctx.realm()), false, ctx).ok();
     let contains = NativeFunction::from_copy_closure(|_, _, _| Ok(JsValue::Boolean(false)));
-    class_list.set("contains", contains.to_js_function(ctx.realm()), false, ctx).ok();
-    element.set("classList", class_list, false, ctx).ok();
+    class_list.set(js_string!("contains"), contains.to_js_function(ctx.realm()), false, ctx).ok();
+    element.set(js_string!("classList"), class_list, false, ctx).ok();
 
     // style object
     let style = JsObject::default();
-    element.set("style", style, false, ctx).ok();
+    element.set(js_string!("style"), style, false, ctx).ok();
 
     // focus/blur
     let noop = NativeFunction::from_copy_closure(|_, _, _| Ok(JsValue::undefined()));
-    element.set("focus", noop.to_js_function(ctx.realm()), false, ctx).ok();
-    element.set("blur", noop.to_js_function(ctx.realm()), false, ctx).ok();
-    element.set("click", noop.to_js_function(ctx.realm()), false, ctx).ok();
+    element.set(js_string!("focus"), noop.to_js_function(ctx.realm()), false, ctx).ok();
+    element.set(js_string!("blur"), noop.to_js_function(ctx.realm()), false, ctx).ok();
+    element.set(js_string!("click"), noop.to_js_function(ctx.realm()), false, ctx).ok();
 
     Ok(element)
 }
@@ -730,17 +730,17 @@ fn create_element_from_dom(
     let element = create_mock_element(ctx, &elem.local_name())?;
 
     // Set actual values from DOM
-    element.set("tagName", elem.tag_name(), false, ctx).ok();
-    element.set("innerHTML", elem.inner_html(), false, ctx).ok();
-    element.set("outerHTML", elem.outer_html(), false, ctx).ok();
-    element.set("textContent", elem.text_content(), false, ctx).ok();
+    element.set(js_string!("tagName"), elem.tag_name(), false, ctx).ok();
+    element.set(js_string!("innerHTML"), elem.inner_html(), false, ctx).ok();
+    element.set(js_string!("outerHTML"), elem.outer_html(), false, ctx).ok();
+    element.set(js_string!("textContent"), elem.text_content(), false, ctx).ok();
 
     if let Some(id) = elem.id() {
-        element.set("id", id, false, ctx).ok();
+        element.set(js_string!("id"), id, false, ctx).ok();
     }
 
     let class = elem.get_attribute("class").unwrap_or_default();
-    element.set("className", class, false, ctx).ok();
+    element.set(js_string!("className"), class, false, ctx).ok();
 
     Ok(element)
 }

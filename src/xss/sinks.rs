@@ -193,8 +193,8 @@ impl SinkAnalyzer {
         let patterns = vec![
             (SinkType::Eval, r"\beval\s*\("),
             (SinkType::FunctionConstructor, r"\bnew\s+Function\s*\("),
-            (SinkType::SetTimeoutString, r"\bsetTimeout\s*\(\s*['\"`]"),
-            (SinkType::SetIntervalString, r"\bsetInterval\s*\(\s*['\"`]"),
+            (SinkType::SetTimeoutString, r#"\bsetTimeout\s*\(\s*['"`]"#),
+            (SinkType::SetIntervalString, r#"\bsetInterval\s*\(\s*['"`]"#),
             (SinkType::DocumentWrite, r"\bdocument\.write\s*\("),
             (SinkType::DocumentWriteln, r"\bdocument\.writeln\s*\("),
             (SinkType::InnerHtml, r"\.innerHTML\s*="),

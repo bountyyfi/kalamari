@@ -87,7 +87,7 @@ impl Page {
 
     /// Navigate to a URL
     pub async fn navigate(&self, url: &str) -> Result<Response> {
-        let parsed_url = Url::parse(url).map_err(|e| Error::Navigation(e.to_string()))?;
+        let parsed_url = Url::parse(url).map_err(|e| Error::navigation(e.to_string()))?;
 
         let request = Request::get(url)?
             .timeout(self.config.timeout);
@@ -207,7 +207,7 @@ impl Page {
     /// Execute JavaScript
     pub fn evaluate(&self, script: &str) -> Result<crate::js::JsValue> {
         let js = self.js_runtime.as_ref().ok_or_else(|| {
-            Error::JavaScript("JavaScript is disabled".to_string())
+            Error::js("JavaScript is disabled")
         })?;
 
         js.execute(script)
@@ -258,7 +258,7 @@ impl Page {
         // If it's a link, navigate to it
         if let Some(href) = element.href() {
             if let Some(base_url) = self.url.read().as_ref() {
-                let target_url = base_url.join(&href).map_err(|e| Error::Navigation(e.to_string()))?;
+                let target_url = base_url.join(&href).map_err(|e| Error::navigation(e.to_string()))?;
                 self.navigate(target_url.as_str()).await?;
             }
         }
@@ -329,10 +329,10 @@ impl Page {
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
 
-        Err(Error::Timeout(format!(
-            "Timeout waiting for selector: {}",
-            selector
-        )))
+        Err(Error::timeout(
+            format!("waiting for selector: {}", selector),
+            timeout.as_millis() as u64,
+        ))
     }
 
     /// Get page configuration
@@ -343,7 +343,7 @@ impl Page {
     /// Reload the page
     pub async fn reload(&self) -> Result<Response> {
         let url = self.url().ok_or_else(|| {
-            Error::Navigation("No URL to reload".to_string())
+            Error::navigation("No URL to reload".to_string())
         })?;
         self.navigate(&url).await
     }

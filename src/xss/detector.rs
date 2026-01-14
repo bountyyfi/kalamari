@@ -54,7 +54,7 @@ pub struct XssDetector {
 impl XssDetector {
     /// Create a new XSS detector
     pub fn new(config: XssDetectorConfig) -> Self {
-        let js_config = crate::js::runtime::JsRuntimeConfig {
+        let js_config = crate::js::JsRuntimeConfig {
             timeout_ms: config.js_timeout_ms,
             xss_detection: true,
             ..Default::default()
@@ -231,8 +231,8 @@ impl XssDetector {
             (r"\.insertAdjacentHTML\s*\(", "insertAdjacentHTML"),
             (r"eval\s*\(", "eval"),
             (r"new\s+Function\s*\(", "Function constructor"),
-            (r"setTimeout\s*\(\s*['\"]", "setTimeout with string"),
-            (r"setInterval\s*\(\s*['\"]", "setInterval with string"),
+            (r#"setTimeout\s*\(\s*['""]"#, "setTimeout with string"),
+            (r#"setInterval\s*\(\s*['""]"#, "setInterval with string"),
             (r"location\s*=", "location assignment"),
             (r"location\.href\s*=", "location.href assignment"),
             (r"location\.replace\s*\(", "location.replace"),
