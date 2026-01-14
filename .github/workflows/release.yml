@@ -45,7 +45,12 @@ jobs:
       - name: Update version in Cargo.toml
         id: bump
         run: |
-          sed -i 's/^version = ".*"/version = "${{ inputs.version }}"/' Cargo.toml
+          # Only replace the package version in [package] section, not dependency versions
+          # Use awk to only replace the first version line (package version)
+          awk -v ver="${{ inputs.version }}" '
+            /^version = "/ && !done { sub(/^version = ".*"/, "version = \"" ver "\""); done=1 }
+            { print }
+          ' Cargo.toml > Cargo.toml.tmp && mv Cargo.toml.tmp Cargo.toml
           cargo check --quiet 2>/dev/null || true
           echo "version=v${{ inputs.version }}" >> $GITHUB_OUTPUT
 
