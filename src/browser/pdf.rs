@@ -3,8 +3,7 @@
 
 //! PDF generation capability
 //!
-//! Feature-gated PDF generation using printpdf.
-//! For full visual rendering, use headless_chrome as fallback.
+//! Feature-gated PDF generation using printpdf (pure Rust, no Chrome).
 
 use std::path::Path;
 
@@ -138,10 +137,9 @@ pub trait PdfGenerator: Send + Sync {
     }
 }
 
-/// Simple PDF generator using printpdf (no visual rendering)
+/// PDF generator using printpdf (pure Rust)
 ///
-/// This generates basic PDFs with text content.
-/// For full visual rendering, use ChromePdfGenerator.
+/// Generates PDFs with text content extracted from HTML.
 #[cfg(feature = "pdf")]
 pub struct SimplePdfGenerator;
 
@@ -223,75 +221,6 @@ impl PdfGenerator for SimplePdfGenerator {
     }
 }
 
-/// Chrome-based PDF generator (requires headless_chrome)
-///
-/// Use this when you need full visual rendering.
-#[cfg(feature = "chrome-pdf")]
-pub struct ChromePdfGenerator {
-    browser: headless_chrome::Browser,
-}
-
-#[cfg(feature = "chrome-pdf")]
-impl ChromePdfGenerator {
-    pub fn new() -> Result<Self> {
-        let browser = headless_chrome::Browser::default()
-            .map_err(|e| Error::Other(format!("Chrome launch error: {:?}", e)))?;
-        Ok(Self { browser })
-    }
-}
-
-#[cfg(feature = "chrome-pdf")]
-impl PdfGenerator for ChromePdfGenerator {
-    fn generate_pdf(
-        &self,
-        html: &str,
-        options: &PrintToPdfOptions,
-    ) -> Result<Vec<u8>> {
-        use headless_chrome::protocol::cdp::Page::PrintToPdfParams;
-
-        let tab = self.browser.new_tab()
-            .map_err(|e| Error::Other(format!("Tab error: {:?}", e)))?;
-
-        // Navigate to data URL with HTML
-        let data_url = format!(
-            "data:text/html;base64,{}",
-            base64::Engine::encode(
-                &base64::engine::general_purpose::STANDARD,
-                html.as_bytes()
-            )
-        );
-
-        tab.navigate_to(&data_url)
-            .map_err(|e| Error::Other(format!("Navigate error: {:?}", e)))?;
-
-        tab.wait_until_navigated()
-            .map_err(|e| Error::Other(format!("Wait error: {:?}", e)))?;
-
-        // Generate PDF
-        let pdf_options = PrintToPdfParams {
-            landscape: Some(options.landscape),
-            display_header_footer: Some(options.display_header_footer),
-            print_background: Some(options.print_background),
-            scale: Some(options.scale),
-            paper_width: Some(options.paper_width),
-            paper_height: Some(options.paper_height),
-            margin_top: Some(options.margin_top),
-            margin_bottom: Some(options.margin_bottom),
-            margin_left: Some(options.margin_left),
-            margin_right: Some(options.margin_right),
-            page_ranges: options.page_ranges.clone(),
-            header_template: options.header_template.clone(),
-            footer_template: options.footer_template.clone(),
-            ..Default::default()
-        };
-
-        let pdf_data = tab.print_to_pdf(Some(pdf_options))
-            .map_err(|e| Error::Other(format!("PDF error: {:?}", e)))?;
-
-        Ok(pdf_data)
-    }
-}
-
 /// Null PDF generator (when PDF feature is disabled)
 pub struct NullPdfGenerator;
 
@@ -309,19 +238,12 @@ impl PdfGenerator for NullPdfGenerator {
 
 /// Create appropriate PDF generator based on features
 pub fn create_pdf_generator() -> Box<dyn PdfGenerator> {
-    #[cfg(feature = "chrome-pdf")]
-    {
-        if let Ok(gen) = ChromePdfGenerator::new() {
-            return Box::new(gen);
-        }
-    }
-
     #[cfg(feature = "pdf")]
     {
         return Box::new(SimplePdfGenerator::new());
     }
 
-    #[cfg(not(any(feature = "pdf", feature = "chrome-pdf")))]
+    #[cfg(not(feature = "pdf"))]
     {
         Box::new(NullPdfGenerator)
     }

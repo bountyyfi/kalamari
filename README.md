@@ -365,8 +365,7 @@ kalamari forms https://example.com/login
 |---------|-------------|--------------|
 | `default` | Core functionality | None |
 | `websocket` | WebSocket support | tokio-tungstenite |
-| `pdf` | Simple PDF generation | printpdf |
-| `chrome-pdf` | Full Chrome PDF (fallback) | headless_chrome |
+| `pdf` | PDF generation (pure Rust) | printpdf |
 | `full` | All features | All above |
 
 ## Dependencies
@@ -386,8 +385,6 @@ Kalamari is optimized for security testing, not full browser emulation:
 - **No WebGL/Canvas** - Graphics APIs not supported
 - **Timer execution** - setTimeout/setInterval use real TimerQueue with unique IDs; use `flush_timers()` or `execute_ready_timers()` to execute
 - **No plugins** - Flash, PDF viewer, etc. not supported
-
-For features requiring full browser rendering, use the `chrome-pdf` feature.
 
 ## License
 
